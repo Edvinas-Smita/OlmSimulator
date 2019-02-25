@@ -76,7 +76,6 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.cbWndExtra     = 0;
     wcex.hInstance      = hInstance;
     wcex.hIcon          = wcex.hIconSm = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON));
-	//wcex.hIconSm		= LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON));
     wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
 	wcex.lpszMenuName	= NULL;
@@ -102,14 +101,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    HWND hWnd = CreateWindowW(
 	   szWindowClass,
 	   szTitle,
-	   WS_OVERLAPPEDWINDOW,
-//	   CW_USEDEFAULT,
-//	   0,
-//	   CW_USEDEFAULT,
-//	   0,
+	   WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME,
 	   CW_USEDEFAULT,
 	   CW_USEDEFAULT,
-	   541,	//21 * 25 + 16 (borders)
+	   541 + 301,	//21 * 25 + 16 (borders)
 	   564,	//21 * 25 + 8 (bottom border) + 31 (top border)
 	   nullptr,
 	   nullptr,
@@ -144,10 +139,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
 		case WM_CREATE:
 		{
-			Orientation ort = NorthLeft;
+			Orientation ort = NorthUp;
 			OlmLocation ol = East;
 			initParts(hWnd, ol, ort);
 			initGrid(hWnd, ort);
+			CreateWindow(L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_ETCHEDVERT, 525, 0, 0, MAXINT32, hWnd, NULL, hInst, NULL);	//divider
 			return DefWindowProc(hWnd, message, wParam, lParam);
 		}
     /*case WM_COMMAND:

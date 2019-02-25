@@ -9,9 +9,7 @@ HWND melee = nullptr;
 
 HWND createPart(HWND m_hwnd, OlmLocation ol, Orientation ort, OlmPart part, LPCWSTR text)
 {
-	WINDOWINFO info;
-	GetWindowInfo(m_hwnd, &info);
-	int windowWidth = info.rcClient.right - info.rcClient.left, windowHeigth = info.rcClient.bottom - info.rcClient.top;
+	int windowWidth = 525, windowHeigth = 525;
 	int offsetFromEdge = (ol == West ? 100 : 50) + part;
 	int x, y;
 	switch (ol)
@@ -70,7 +68,7 @@ HWND createPart(HWND m_hwnd, OlmLocation ol, Orientation ort, OlmPart part, LPCW
 	return CreateWindow(
 		L"BUTTON",
 		text,
-		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
+		WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
 		x,			// x position 
 		y,			// y position 
 		125,		// Button width

@@ -3,16 +3,20 @@
 
 #define GRID_TILE_COUNT 11*19
 
-HWND *grid = new HWND[GRID_TILE_COUNT];	//0 === Top Left; GRID_TILE_COUNT - 1 === Bottom Right	//this is NOT transformed - north is up
+HWND grid[11*19];	//0 === Top Left; GRID_TILE_COUNT - 1 === Bottom Right
+					//this is NOT transformed - north is up
+					//[y * 11 + x] - flattened horizontal first
 
-HWND createTile(HWND m_hwnd, char x, char y)
+HWND createTile(HWND m_hwnd, char x, char y, int xy)
 {
-	return CreateWindow(
+	WCHAR buffer[32];
+	swprintf_s(buffer, L"%d\n", xy);
+	return CreateWindowW(
 		L"BUTTON",
-		L"",
-		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
-		x*25,		// x position
-		y*25,		// y position 
+		buffer,
+		WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
+		x * 25,		// x position in window
+		y * 25,		// y position in window
 		25,			// Button width
 		25,			// Button height
 		m_hwnd,		// Parent window
@@ -27,99 +31,105 @@ BOOL initGrid(HWND m_hwnd, Orientation o)
 	switch (o)
 	{
 		case Orientation::NorthUp:
-			for (int x = 5; x < 16; x++)	//main room
+			for (int y = 0; y < 18; y++)	//main room
 			{
-				for (int y = 1; y < 19; y++)
+				for (int x = 0; x < 11; x++)
 				{
-					HWND toSave = createTile(m_hwnd, x, y);
+					HWND toSave = createTile(m_hwnd, x + 5, y + 1, y * 11 + x);
 					if (toSave == nullptr)
 					{
 						return FALSE;
 					}
-					grid[x + y * 21] = toSave;
+					grid[y * 11 + x] = toSave;
 				}
 			}
 
-			for (int i = 8; i < 13; i++)	//door tiles
+			for (int i = 0; i < 5; i++)	//door tiles
 			{
-				HWND toSave = createTile(m_hwnd, i, 19);
+				HWND toSave = createTile(m_hwnd, i + 8, 19, i);
 				if (toSave == nullptr)
 				{
 					return FALSE;
 				}
-				grid[19 * 21 + i] = toSave;
+				grid[18 * 11 + i + 3] = toSave;
 			}
+			//for (int i = 0; i < 11 * 19; i++)
+			//{
+			//	int xx = (i % 11) * 25, yy = (i / 11) * 25;
+			//	if (grid[i] != nullptr)
+			//		MoveWindow(grid[i], xx, yy, 25, 25, 0);
+			//}
 			return TRUE;
 		case Orientation::NorthRight:
-			for (int x = 2; x < 20; x++)	//main room
+			for (int y = 0; y < 18; y++)	//main room
 			{
-				for (int y = 5; y < 16; y++)
+				for (int x = 0; x < 11; x++)
 				{
-					HWND toSave = createTile(m_hwnd, x, y);
+					HWND toSave = createTile(m_hwnd, 19 - y, x + 5, y * 11 + x);
 					if (toSave == nullptr)
 					{
 						return FALSE;
 					}
-					grid[x + y * 21] = toSave;
+					grid[y * 11 + x] = toSave;
 				}
 			}
 
-			for (int i = 8; i < 13; i++)	//door tiles
+			for (int i = 0; i < 5; i++)	//door tiles
 			{
-				HWND toSave = createTile(m_hwnd, 1, i);
+				HWND toSave = createTile(m_hwnd, 1, i + 8, i);
 				if (toSave == nullptr)
 				{
 					return FALSE;
 				}
-				grid[i * 21 + 1] = toSave;
+				grid[18 * 11 + i + 3] = toSave;
 			}
 			return TRUE;
 		case Orientation::NorthDown:
-			for (int x = 5; x < 16; x++)	//main room
+			for (int y = 0; y < 18; y++)	//main room
 			{
-				for (int y = 2; y < 20; y++)
+				for (int x = 0; x < 11; x++)
 				{
-					HWND toSave = createTile(m_hwnd, x, y);
+					HWND toSave = createTile(m_hwnd, 15 - x, 19 - y, y * 11 + x);
 					if (toSave == nullptr)
 					{
 						return FALSE;
 					}
-					grid[x + y * 21] = toSave;
+					grid[y * 11 + x] = toSave;
 				}
 			}
 
-			for (int i = 8; i < 13; i++)	//door tiles
+			for (int i = 0; i < 5; i++)	//door tiles
 			{
-				HWND toSave = createTile(m_hwnd, i, 1);
+				HWND toSave = createTile(m_hwnd, 12 - i, 1, i);
 				if (toSave == nullptr)
 				{
 					return FALSE;
 				}
-				grid[i] = toSave;
+				grid[18 * 11 + i + 3] = toSave;
 			}
 			return TRUE;
 		case Orientation::NorthLeft:
-			for (int x = 1; x < 19; x++)	//main room
+			for (int y = 0; y < 18; y++)	//main room
 			{
-				for (int y = 5; y < 16; y++)
+				for (int x = 0; x < 11; x++)
 				{
-					HWND toSave = createTile(m_hwnd, x, y);
+					HWND toSave = createTile(m_hwnd, y + 1, 15 - x, y * 11 + x);
 					if (toSave == nullptr)
 					{
 						return FALSE;
 					}
-					grid[x + y * 21] = toSave;
+					grid[y * 11 + x] = toSave;
 				}
 			}
 
-			for (int i = 8; i < 13; i++)	//door tiles
+			for (int i = 0; i < 5; i++)	//door tiles
 			{
-				HWND toSave = createTile(m_hwnd, 19, i);
+				HWND toSave = createTile(m_hwnd, 19, 12 - i, i);
 				if (toSave == nullptr)
 				{
 					return FALSE;
 				}
-				grid[i * 21 + 18] = toSave;
+				grid[18 * 11 + i + 3] = toSave;
 			}
 			return TRUE;
 		default:
