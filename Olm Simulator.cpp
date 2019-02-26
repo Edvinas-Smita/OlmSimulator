@@ -3,8 +3,6 @@
 
 #include "stdafx.h"
 #include "Olm Simulator.h"
-#include "Olm parts.h"
-#include "Grid.h"
 
 #define MAX_LOADSTRING 100
 
@@ -139,21 +137,31 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
 		case WM_CREATE:
 		{
-			Orientation ort = NorthUp;
+			Orientation ort = NorthRight;
 			OlmLocation ol = East;
 			initParts(hWnd, ol, ort);
 			initGrid(hWnd, ort);
-			CreateWindow(L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_ETCHEDVERT, 525, 0, 0, MAXINT32, hWnd, NULL, hInst, NULL);	//divider
+			HWND controllArea = initControllArea(hWnd);
+			initCameraControlls(controllArea, NULL, NULL, NULL, NULL);
 			return DefWindowProc(hWnd, message, wParam, lParam);
 		}
-    /*case WM_COMMAND:
+    case WM_COMMAND:
         {
             int wmId = LOWORD(wParam);
+
+			if ((wmId & GRID_BUTTON) == GRID_BUTTON)
+			{
+				int buttonId = wmId & (~GRID_BUTTON);						////////////////////////////////////////////////////	BUTTON CLICKS HERE
+				WCHAR buffer[32];
+				swprintf_s(buffer, L"Button NR: %d\n", buttonId);
+				OutputDebugString(buffer);
+			}
+
             // Parse the menu selections:
             switch (wmId)
             {
             case IDM_ABOUT:
-                DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+                //DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
                 break;
             case IDM_EXIT:
                 DestroyWindow(hWnd);
@@ -162,7 +170,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 return DefWindowProc(hWnd, message, wParam, lParam);
             }
         }
-        break;*/
+        break;
     case WM_PAINT:
         {
             PAINTSTRUCT ps;

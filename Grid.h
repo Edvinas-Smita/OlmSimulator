@@ -2,6 +2,8 @@
 
 #include <windows.h>
 
+#define GRID_BUTTON 0xB700
+
 enum Orientation
 {
 	NorthUp, NorthRight, NorthDown, NorthLeft

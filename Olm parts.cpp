@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "Olm parts.h"
 
-#include <iostream>
+//#include <iostream>
 
 HWND head = nullptr;
 HWND mage = nullptr;
@@ -64,7 +64,7 @@ HWND createPart(HWND m_hwnd, OlmLocation ol, Orientation ort, OlmPart part, LPCW
 			return nullptr;
 	}
 
-	std::cout << "X: " << x << "; Y: " << y << "\n";
+	//std::cout << "X: " << x << "; Y: " << y << "\n";
 	return CreateWindow(
 		L"BUTTON",
 		text,
@@ -75,7 +75,7 @@ HWND createPart(HWND m_hwnd, OlmLocation ol, Orientation ort, OlmPart part, LPCW
 		125,		// Button height
 		m_hwnd,		// Parent window
 		NULL,		// No menu.
-		(HINSTANCE) GetWindowLong(m_hwnd, GWL_HINSTANCE),
+		(HINSTANCE) GetWindowLong(m_hwnd, GWLP_HINSTANCE),
 		NULL
 	);
 }

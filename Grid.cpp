@@ -11,7 +11,7 @@ HWND createTile(HWND m_hwnd, char x, char y, int xy)
 {
 	WCHAR buffer[32];
 	swprintf_s(buffer, L"%d\n", xy);
-	return CreateWindowW(
+	return CreateWindow(
 		L"BUTTON",
 		buffer,
 		WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
@@ -20,8 +20,8 @@ HWND createTile(HWND m_hwnd, char x, char y, int xy)
 		25,			// Button width
 		25,			// Button height
 		m_hwnd,		// Parent window
-		NULL,		// No menu.
-		(HINSTANCE) GetWindowLong(m_hwnd, GWL_HINSTANCE),
+		(HMENU) (GRID_BUTTON | xy),		// No menu.
+		(HINSTANCE) GetWindowLong(m_hwnd, GWLP_HINSTANCE),
 		NULL
 	);
 }
