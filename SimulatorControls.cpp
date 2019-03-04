@@ -1,11 +1,11 @@
 #include "stdafx.h"
 #include "Olm Simulator.h"
 
-HWND ControlNorthUp, ControlNorthRight, ControlNorthDown, ControlNorthLeft;
+HWND ControlNorthUp = nullptr, ControlNorthRight = nullptr, ControlNorthDown = nullptr, ControlNorthLeft = nullptr;
 
 HWND initControlArea(HWND hwnd)
 {
-	return CreateWindow(L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_BLACKFRAME, 525, 0, 300, 525, hwnd, NULL, (HINSTANCE) GetWindowLong(hwnd, GWLP_HINSTANCE), NULL);	//divider
+	return CreateWindow(L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_BLACKFRAME, 525, 0, 300, 525, hwnd, NULL, (HINSTANCE) GetWindowLong(hwnd, GWLP_HINSTANCE), NULL);
 }
 
 BOOL initCameraControls(HWND hwnd)

@@ -240,7 +240,7 @@ LRESULT CALLBACK ControlHandler(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_
 						DestroyWindow(main_hwnd);
 						break;
 					}
-					if (!rotateParts(West, o))
+					if (!rotateAllParts(West, o))
 					{
 						DestroyWindow(main_hwnd);
 						break;

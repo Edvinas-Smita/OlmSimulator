@@ -12,4 +12,4 @@ BOOL initParts(HWND m_hwnd);
 
 BOOL rotatePart(OlmLocation ol, Orientation ort, OlmPart part);
 
-BOOL rotateParts(OlmLocation ol, Orientation ort)
+BOOL rotateAllParts(OlmLocation ol, Orientation ort)

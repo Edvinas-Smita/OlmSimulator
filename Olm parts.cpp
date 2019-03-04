@@ -56,7 +56,7 @@ BOOL rotatePart(OlmLocation ol, Orientation ort, OlmPart part)
 	int windowWidth = 525, windowHeigth = 525;
 	int offsetFromEdge = (ol == West ? 100 : 50) + part;
 	int x, y;
-	char c = (char) (ort + 2 * ol);
+	char c = ort + 2 * ol;
 
 	switch (c)
 	{
@@ -80,58 +80,6 @@ BOOL rotatePart(OlmLocation ol, Orientation ort, OlmPart part)
 			return FALSE;
 	};
 
-	/*switch (ol)
-	{
-		case East:
-			switch (ort)
-			{
-				case NorthUp:
-					x = windowWidth - 125;
-					y = offsetFromEdge;
-					break;
-				case NorthRight:
-					x = windowWidth - offsetFromEdge - 125;
-					y = windowHeigth - 125;
-					break;
-				case NorthDown:
-					x = 0;
-					y = windowHeigth - offsetFromEdge - 125;
-					break;
-				case NorthLeft:
-					x = offsetFromEdge;
-					y = 0;
-					break;
-				default:
-					return FALSE;
-			};
-			break;
-		case West:
-			switch (ort)
-			{
-				case NorthUp:
-					x = 0;
-					y = windowHeigth - offsetFromEdge - 125;
-					break;
-				case NorthRight:
-					x = offsetFromEdge;
-					y = 0;
-					break;
-				case NorthDown:
-					x = windowWidth - 125;
-					y = offsetFromEdge;
-					break;
-				case NorthLeft:
-					x = windowWidth - offsetFromEdge - 125;
-					y = windowHeigth - 125;
-					break;
-				default:
-					return FALSE;
-			};
-			break;
-		default:
-			return FALSE;
-	}*/
-
 	switch (part)
 	{
 		case Mage:
@@ -150,7 +98,7 @@ BOOL rotatePart(OlmLocation ol, Orientation ort, OlmPart part)
 	return TRUE;
 }
 
-BOOL rotateParts(OlmLocation ol, Orientation ort)
+BOOL rotateAllParts(OlmLocation ol, Orientation ort)
 {
 	if (!rotatePart(ol, ort, Mage))
 	{
