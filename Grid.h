@@ -9,6 +9,6 @@ enum Orientation
 	NorthUp, NorthRight, NorthDown, NorthLeft
 };
 
-//HWND getTileAtCoords(int x, int y);
+BOOL initGrid(HWND m_hwnd);
 
-BOOL initGrid(HWND m_hwnd, Orientation o);
+BOOL rotateGrid(Orientation o);

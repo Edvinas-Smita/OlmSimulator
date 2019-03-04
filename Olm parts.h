@@ -6,6 +6,10 @@
 enum OlmLocation{West, East};
 enum OlmPart{Mage = 0, Head = 125, Melee = 250};
 
-HWND createPart(HWND m_hwnd, OlmLocation ol, Orientation ort, OlmPart part, LPCWSTR text);
+HWND createPart(HWND m_hwnd, OlmPart part);
 
-BOOL initParts(HWND m_hwnd, OlmLocation ol, Orientation ort);
+BOOL initParts(HWND m_hwnd);
+
+BOOL rotatePart(OlmLocation ol, Orientation ort, OlmPart part);
+
+BOOL rotateParts(OlmLocation ol, Orientation ort)

@@ -33,7 +33,7 @@
     <ClInclude Include="Grid.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SimulatorControlls.h">
+    <ClInclude Include="SimulatorControls.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -50,7 +50,7 @@
     <ClCompile Include="Grid.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SimulatorControlls.cpp">
+    <ClCompile Include="SimulatorControls.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -4,4 +4,4 @@
 
 #include "Grid.h"
 #include "Olm parts.h"
-#include "SimulatorControlls.h"
+#include "SimulatorControls.h"

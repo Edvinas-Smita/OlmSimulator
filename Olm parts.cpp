@@ -1,18 +1,86 @@
 #include "stdafx.h"
-#include "Olm parts.h"
-
-//#include <iostream>
+#include "Olm Simulator.h"
 
 HWND head = nullptr;
 HWND mage = nullptr;
 HWND melee = nullptr;
 
-HWND createPart(HWND m_hwnd, OlmLocation ol, Orientation ort, OlmPart part, LPCWSTR text)
+HWND createPart(HWND m_hwnd, OlmPart part)
+{
+	LPCWSTR text;
+	switch (part)
+	{
+		case Mage:
+			text = L"MAGE";
+			break;
+		case Head:
+			text = L"HEAD";
+			break;
+		case Melee:
+			text = L"MELEE";
+			break;
+		default:
+			return nullptr;
+	}
+
+	return CreateWindow(
+		L"BUTTON",
+		text,
+		WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
+		0,			// x position
+		300 - part,	// y position 
+		125,		// Button width
+		125,		// Button height
+		m_hwnd,		// Parent window
+		NULL,		// No menu.
+		(HINSTANCE) GetWindowLong(m_hwnd, GWLP_HINSTANCE),
+		NULL
+	);
+}
+
+BOOL initParts(HWND m_hwnd)
+{
+	mage = createPart(m_hwnd, Mage);
+	head = createPart(m_hwnd, Head);
+	melee = createPart(m_hwnd, Melee);
+
+	if (head == nullptr || mage == nullptr || melee == nullptr)
+	{
+		return false;
+	}
+	return true;
+}
+
+BOOL rotatePart(OlmLocation ol, Orientation ort, OlmPart part)
 {
 	int windowWidth = 525, windowHeigth = 525;
 	int offsetFromEdge = (ol == West ? 100 : 50) + part;
 	int x, y;
-	switch (ol)
+	char c = (char) (ort + 2 * ol);
+
+	switch (c)
+	{
+		case 0:
+			x = windowWidth - 125;
+			y = offsetFromEdge;
+			break;
+		case 1:
+			x = windowWidth - offsetFromEdge - 125;
+			y = windowHeigth - 125;
+			break;
+		case 2:
+			x = 0;
+			y = windowHeigth - offsetFromEdge - 125;
+			break;
+		case 3:
+			x = offsetFromEdge;
+			y = 0;
+			break;
+		default:
+			return FALSE;
+	};
+
+	/*switch (ol)
 	{
 		case East:
 			switch (ort)
@@ -34,7 +102,7 @@ HWND createPart(HWND m_hwnd, OlmLocation ol, Orientation ort, OlmPart part, LPCW
 					y = 0;
 					break;
 				default:
-					return nullptr;
+					return FALSE;
 			};
 			break;
 		case West:
@@ -57,38 +125,44 @@ HWND createPart(HWND m_hwnd, OlmLocation ol, Orientation ort, OlmPart part, LPCW
 					y = windowHeigth - 125;
 					break;
 				default:
-					return nullptr;
+					return FALSE;
 			};
 			break;
 		default:
-			return nullptr;
+			return FALSE;
+	}*/
+
+	switch (part)
+	{
+		case Mage:
+			MoveWindow(mage, x, y, 125, 125, FALSE);
+			break;
+		case Head:
+			MoveWindow(head, x, y, 125, 125, FALSE);
+			break;
+		case Melee:
+			MoveWindow(melee, x, y, 125, 125, FALSE);
+			break;
+		default:
+			return FALSE;
 	}
 
-	//std::cout << "X: " << x << "; Y: " << y << "\n";
-	return CreateWindow(
-		L"BUTTON",
-		text,
-		WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
-		x,			// x position 
-		y,			// y position 
-		125,		// Button width
-		125,		// Button height
-		m_hwnd,		// Parent window
-		NULL,		// No menu.
-		(HINSTANCE) GetWindowLong(m_hwnd, GWLP_HINSTANCE),
-		NULL
-	);
+	return TRUE;
 }
 
-BOOL initParts(HWND m_hwnd, OlmLocation ol, Orientation ort)
+BOOL rotateParts(OlmLocation ol, Orientation ort)
 {
-	mage = createPart(m_hwnd, ol, ort, Mage, L"MAGE");
-	head = createPart(m_hwnd, ol, ort, Head, L"HEAD");
-	melee = createPart(m_hwnd, ol, ort, Melee, L"MELEE");
-
-	if (head == nullptr || mage == nullptr || melee == nullptr)
+	if (!rotatePart(ol, ort, Mage))
 	{
-		return false;
+		return FALSE;
 	}
-	return true;
+	if (!rotatePart(ol, ort, Head))
+	{
+		return FALSE;
+	}
+	if (!rotatePart(ol, ort, Melee))
+	{
+		return FALSE;
+	}
+	return TRUE;
 }

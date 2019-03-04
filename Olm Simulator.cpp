@@ -1,8 +1,10 @@
 // Olm Simulator.cpp : Defines the entry point for the application.
 //
+#pragma comment(lib, "comctl32.lib")
 
 #include "stdafx.h"
 #include "Olm Simulator.h"
+#include <CommCtrl.h>
 
 #define MAX_LOADSTRING 100
 
@@ -15,7 +17,10 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK    ControlHandler(HWND, UINT, WPARAM, LPARAM, UINT_PTR, DWORD_PTR);
+
+HWND main_hwnd;
+WNDPROC old_control;
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -115,6 +120,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
       return FALSE;
    }
 
+   main_hwnd = hWnd;
+
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
 
@@ -137,12 +144,40 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
 		case WM_CREATE:
 		{
-			Orientation ort = NorthRight;
-			OlmLocation ol = East;
-			initParts(hWnd, ol, ort);
-			initGrid(hWnd, ort);
-			HWND controllArea = initControllArea(hWnd);
-			initCameraControlls(controllArea, NULL, NULL, NULL, NULL);
+			if (!initParts(hWnd))
+			{
+				DestroyWindow(hWnd);
+				break;
+			}
+			if (!initGrid(hWnd))
+			{
+				DestroyWindow(hWnd);
+				break;
+			}
+
+			HWND controlArea = initControlArea(hWnd);
+			if (controlArea == nullptr)
+			{
+				DestroyWindow(hWnd);
+				break;
+			}
+			if (!initCameraControls(controlArea))
+			{
+				DestroyWindow(hWnd);
+				break;
+			}
+
+			SetWindowSubclass(controlArea, (SUBCLASSPROC) &ControlHandler, 1, 0);
+			/*LONG_PTR newP = (LONG_PTR) &ControlHandler;
+			old_control = (WNDPROC) SetWindowLongPtr(controlArea, GCLP_WNDPROC, newP);
+			SendMessage(controlArea, 0, 0, 0);
+
+			{
+				WCHAR buff[256];
+				swprintf_s(buff, L"old: %p | new: %p | actual: %p\n", old_control, newP, GetWindowLongPtr(controlArea, GCLP_WNDPROC));
+				OutputDebugString(buff);
+			}*/
+
 			return DefWindowProc(hWnd, message, wParam, lParam);
 		}
     case WM_COMMAND:
@@ -186,6 +221,41 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
     return 0;
+}
+
+LRESULT CALLBACK ControlHandler(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
+{
+	switch (msg)
+	{
+		case WM_COMMAND:
+		{
+			int wpl = LOWORD(wp);
+			if ((wpl & CONTROL_BUTTON) == CONTROL_BUTTON)
+			{
+				if ((wpl & CAMERA_CONTROL) == CAMERA_CONTROL)
+				{
+					Orientation o = (Orientation) ((wpl & (~CONTROL_BUTTON)) & (~CAMERA_CONTROL));
+					if (!rotateGrid(o))
+					{
+						DestroyWindow(main_hwnd);
+						break;
+					}
+					if (!rotateParts(West, o))
+					{
+						DestroyWindow(main_hwnd);
+						break;
+					}
+					RECT wrecked = {0, 0, 525, 525};
+					RedrawWindow(main_hwnd, &wrecked, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
+				}
+			}
+		}
+		break;
+		default:
+			break;
+	}
+	return DefSubclassProc(hwnd, msg, wp, lp);
+	//return CallWindowProc(old_control, hwnd, msg, wp, lp);
 }
 
 // Message handler for about box.
