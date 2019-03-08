@@ -3,6 +3,8 @@
 
 HWND ControlNorthUp = nullptr, ControlNorthRight = nullptr, ControlNorthDown = nullptr, ControlNorthLeft = nullptr;
 
+HWND ControlOlmWest = nullptr, ControlOlmEast = nullptr;
+
 HWND initControlArea(HWND hwnd)
 {
 	return CreateWindow(L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_BLACKFRAME, 525, 0, 300, 525, hwnd, NULL, (HINSTANCE) GetWindowLong(hwnd, GWLP_HINSTANCE), NULL);
@@ -29,7 +31,7 @@ BOOL initCameraControls(HWND hwnd)
 		L"NORTH",
 		WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
 		200,		// x position 
-		100,		// y position 
+		50,		// y position 
 		100,		// Button width
 		100,		// Button height
 		hwnd,		// Parent window
@@ -43,7 +45,7 @@ BOOL initCameraControls(HWND hwnd)
 		L"NORTH",
 		WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
 		100,		// x position 
-		200,		// y position 
+		100,		// y position 
 		100,		// Button width
 		100,		// Button height
 		hwnd,		// Parent window
@@ -57,7 +59,7 @@ BOOL initCameraControls(HWND hwnd)
 		L"NORTH",
 		WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
 		0,			// x position 
-		100,		// y position 
+		50,		// y position 
 		100,		// Button width
 		100,		// Button height
 		hwnd,		// Parent window
@@ -75,7 +77,38 @@ BOOL initCameraControls(HWND hwnd)
 
 BOOL initOlmPosControls(HWND hwnd)
 {
+	ControlOlmWest = CreateWindow(
+		L"BUTTON",
+		L"<--- Olm West",
+		WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
+		0,			// x position 
+		200,		// y position 
+		150,		// Button width
+		50,			// Button height
+		hwnd,		// Parent window
+		(HMENU) (CONTROL_BUTTON | OLMPOS_CONTROL | OlmLocation::West),
+		(HINSTANCE) GetWindowLong(hwnd, GWLP_HINSTANCE),
+		NULL
+	);
 
+	ControlOlmEast = CreateWindow(
+		L"BUTTON",
+		L"Olm East --->",
+		WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
+		150,		// x position 
+		200,		// y position 
+		150,		// Button width
+		50,			// Button height
+		hwnd,		// Parent window
+		(HMENU) (CONTROL_BUTTON | OLMPOS_CONTROL | OlmLocation::East),
+		(HINSTANCE) GetWindowLong(hwnd, GWLP_HINSTANCE),
+		NULL
+	);
+
+	if (ControlOlmWest == nullptr || ControlOlmEast == nullptr)
+	{
+		return FALSE;
+	}
 	return TRUE;
 }
 

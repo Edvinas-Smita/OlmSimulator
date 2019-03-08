@@ -1,10 +1,8 @@
 // Olm Simulator.cpp : Defines the entry point for the application.
 //
-#pragma comment(lib, "comctl32.lib")
 
 #include "stdafx.h"
 #include "Olm Simulator.h"
-#include <CommCtrl.h>
 
 #define MAX_LOADSTRING 100
 
@@ -19,13 +17,24 @@ BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK    ControlHandler(HWND, UINT, WPARAM, LPARAM, UINT_PTR, DWORD_PTR);
 
+//	Custom GUI stuff
 HWND main_hwnd;
 WNDPROC old_control;
 
-int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
-                     _In_opt_ HINSTANCE hPrevInstance,
-                     _In_ LPWSTR    lpCmdLine,
-                     _In_ int       nCmdShow)
+//	Custom logic stuff
+Orientation orientation = NorthUp;
+OlmLocation olmLocation = West;
+
+COLORREF playerColor = RGB(255, 0, 0);
+unsigned char playerPosition = 0;
+
+COLORREF *allPlayersColors = nullptr;
+unsigned char *allPlayerPositions = nullptr;
+
+//	Custom shithole
+unsigned char unpaintId = -1;
+
+int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
 {
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
@@ -60,13 +69,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     return (int) msg.wParam;
 }
 
-
-
-//
-//  FUNCTION: MyRegisterClass()
-//
-//  PURPOSE: Registers the window class.
-//
 ATOM MyRegisterClass(HINSTANCE hInstance)
 {
     WNDCLASSEXW wcex;
@@ -87,16 +89,6 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     return RegisterClassExW(&wcex);
 }
 
-//
-//   FUNCTION: InitInstance(HINSTANCE, int)
-//
-//   PURPOSE: Saves instance handle and creates main window
-//
-//   COMMENTS:
-//
-//        In this function, we save the instance handle in a global variable and
-//        create and display the main program window.
-//
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Store instance handle in our global variable
@@ -128,16 +120,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    return TRUE;
 }
 
-//
-//  FUNCTION: WndProc(HWND, UINT, WPARAM, LPARAM)
-//
-//  PURPOSE: Processes messages for the main window.
-//
-//  WM_COMMAND  - process the application menu
-//  WM_PAINT    - Paint the main window
-//  WM_DESTROY  - post a quit message and return
-//
-//
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
@@ -166,17 +148,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				DestroyWindow(hWnd);
 				break;
 			}
+			if (!initOlmPosControls(controlArea))
+			{
+				DestroyWindow(hWnd);
+				break;
+			}
 
 			SetWindowSubclass(controlArea, (SUBCLASSPROC) &ControlHandler, 1, 0);
-			/*LONG_PTR newP = (LONG_PTR) &ControlHandler;
-			old_control = (WNDPROC) SetWindowLongPtr(controlArea, GCLP_WNDPROC, newP);
-			SendMessage(controlArea, 0, 0, 0);
-
-			{
-				WCHAR buff[256];
-				swprintf_s(buff, L"old: %p | new: %p | actual: %p\n", old_control, newP, GetWindowLongPtr(controlArea, GCLP_WNDPROC));
-				OutputDebugString(buff);
-			}*/
 
 			return DefWindowProc(hWnd, message, wParam, lParam);
 		}
@@ -186,10 +164,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 			if ((wmId & GRID_BUTTON) == GRID_BUTTON)
 			{
-				int buttonId = wmId & (~GRID_BUTTON);						////////////////////////////////////////////////////	BUTTON CLICKS HERE
-				WCHAR buffer[32];
-				swprintf_s(buffer, L"Button NR: %d\n", buttonId);
-				OutputDebugString(buffer);
+				unpaintId = playerPosition;
+				playerPosition = wmId & (~GRID_BUTTON);						////////////////////////////////////////////////////	BUTTON CLICKS HERE
+				if (!redrawTile(playerPosition, unpaintId))
+				{
+					DestroyWindow(hWnd);
+					break;
+				}
 			}
 
             // Parse the menu selections:
@@ -206,6 +187,27 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
         }
         break;
+	case WM_DRAWITEM:
+	{
+		if (wParam == (GRID_BUTTON | playerPosition))
+		{
+			LPDRAWITEMSTRUCT lpDIS = (LPDRAWITEMSTRUCT) lParam;
+			SetDCBrushColor(lpDIS->hDC, playerColor);
+			SelectObject(lpDIS->hDC, GetStockObject(DC_BRUSH));
+			RoundRect(lpDIS->hDC, lpDIS->rcItem.left, lpDIS->rcItem.top, lpDIS->rcItem.right, lpDIS->rcItem.bottom, 0, 0);
+		}/*
+		else if (wParam == (GRID_BUTTON | unpaintId))
+		{
+
+		}*/
+		else
+		{
+			LPDRAWITEMSTRUCT lpDIS = (LPDRAWITEMSTRUCT) lParam;
+			SelectObject(lpDIS->hDC, GetStockObject(DC_BRUSH));
+			RoundRect(lpDIS->hDC, lpDIS->rcItem.left, lpDIS->rcItem.top, lpDIS->rcItem.right, lpDIS->rcItem.bottom, 0, 0);
+		}
+	}
+	break;
     case WM_PAINT:
         {
             PAINTSTRUCT ps;
@@ -234,13 +236,24 @@ LRESULT CALLBACK ControlHandler(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_
 			{
 				if ((wpl & CAMERA_CONTROL) == CAMERA_CONTROL)
 				{
-					Orientation o = (Orientation) ((wpl & (~CONTROL_BUTTON)) & (~CAMERA_CONTROL));
-					if (!rotateGrid(o))
+					orientation = (Orientation) ((wpl & (~CONTROL_BUTTON)) & (~CAMERA_CONTROL));
+					if (!rotateGrid(orientation))
 					{
 						DestroyWindow(main_hwnd);
 						break;
 					}
-					if (!rotateAllParts(West, o))
+					if (!rotateAllParts(olmLocation, orientation))
+					{
+						DestroyWindow(main_hwnd);
+						break;
+					}
+					RECT wrecked = {0, 0, 525, 525};
+					RedrawWindow(main_hwnd, &wrecked, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
+				}
+				else if ((wpl & OLMPOS_CONTROL) == OLMPOS_CONTROL)
+				{
+					olmLocation = (OlmLocation) ((wpl & (~CONTROL_BUTTON)) & (~OLMPOS_CONTROL));
+					if (!rotateAllParts(olmLocation, orientation))
 					{
 						DestroyWindow(main_hwnd);
 						break;
@@ -255,7 +268,6 @@ LRESULT CALLBACK ControlHandler(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_
 			break;
 	}
 	return DefSubclassProc(hwnd, msg, wp, lp);
-	//return CallWindowProc(old_control, hwnd, msg, wp, lp);
 }
 
 // Message handler for about box.

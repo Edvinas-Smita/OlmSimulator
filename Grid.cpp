@@ -16,7 +16,7 @@ HWND createTile(HWND m_hwnd, int id)
 	return CreateWindow(
 		L"BUTTON",
 		buffer,
-		WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
+		WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON | BS_OWNERDRAW,  // Styles 
 		x,			// x position in window
 		y,			// y position in window
 		25,			// Button width
@@ -126,4 +126,9 @@ BOOL rotateGrid(Orientation o)
 			break;
 	}
 	return TRUE;
+}
+
+BOOL redrawTile(unsigned char newPos, unsigned char oldPos)
+{
+	return RedrawWindow(grid[newPos], nullptr, NULL, RDW_INVALIDATE | RDW_ERASE) && RedrawWindow(grid[oldPos], nullptr, NULL, RDW_INVALIDATE | RDW_ERASE);
 }
