@@ -1,6 +1,8 @@
 #pragma once
 
 #include <windows.h>
+#include "Grid.h"
+#include "Olm parts.h"
 
 #define CONTROL_BUTTON 0xB800
 #define CAMERA_CONTROL 0x20

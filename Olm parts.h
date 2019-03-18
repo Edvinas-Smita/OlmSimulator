@@ -3,6 +3,8 @@
 #include <windows.h>
 #include "Grid.h"
 
+#define OLMPART_BUTTON 0xFA00
+
 enum OlmLocation{West, East};
 enum OlmPart{Mage = 0, Head = 125, Melee = 250};
 

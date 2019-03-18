@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "Olm Simulator.h"
+#include "Grid.h"
 
 #define GRID_TILE_COUNT 11*19
 
@@ -16,13 +16,13 @@ HWND createTile(HWND m_hwnd, int id)
 	return CreateWindow(
 		L"BUTTON",
 		buffer,
-		WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON | BS_OWNERDRAW,  // Styles 
+		WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_OWNERDRAW,  // Styles 
 		x,			// x position in window
 		y,			// y position in window
 		25,			// Button width
 		25,			// Button height
 		m_hwnd,		// Parent window
-		(HMENU) (GRID_BUTTON | id),		// No menu.
+		(HMENU) (GRID_BUTTON | id),
 		(HINSTANCE) GetWindowLong(m_hwnd, GWLP_HINSTANCE),
 		NULL
 	);

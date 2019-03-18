@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "Olm Simulator.h"
+#include "SimulatorControls.h"
 
 HWND ControlNorthUp = nullptr, ControlNorthRight = nullptr, ControlNorthDown = nullptr, ControlNorthLeft = nullptr;
 

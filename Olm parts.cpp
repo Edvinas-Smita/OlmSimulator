@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "Olm Simulator.h"
+#include "Olm Parts.h"
 
 HWND head = nullptr;
 HWND mage = nullptr;
@@ -26,13 +26,13 @@ HWND createPart(HWND m_hwnd, OlmPart part)
 	return CreateWindow(
 		L"BUTTON",
 		text,
-		WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  // Styles 
+		WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,  // Styles 
 		0,			// x position
 		300 - part,	// y position 
 		125,		// Button width
 		125,		// Button height
 		m_hwnd,		// Parent window
-		NULL,		// No menu.
+		(HMENU) (OLMPART_BUTTON | part),
 		(HINSTANCE) GetWindowLong(m_hwnd, GWLP_HINSTANCE),
 		NULL
 	);
