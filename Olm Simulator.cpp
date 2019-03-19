@@ -28,11 +28,8 @@ WNDPROC				old_control;
 Orientation			orientation = NorthUp;
 OlmLocation			olmLocation = West;
 
-COLORREF			allPlayerColors[MAX_CONS] = {RGB(255, 0, 0)};
-BYTE				allPlayerPositions[MAX_CONS] = {203};
-
-//	Custom shithole
-unsigned char		unpaintId = -1;
+COLORREF			allPlayerColors[MAX_CONS] = {{RGB(255, 0, 0)}};
+BYTE				allPlayerPositions[MAX_CONS] = {{203}};
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
 {
@@ -122,8 +119,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    switch (message)
-    {
+	switch (message)
+	{
 		case WM_CREATE:
 		{
 
@@ -159,28 +156,36 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 			return DefWindowProc(hWnd, message, wParam, lParam);
 		}
-    case WM_COMMAND:
-        {
-            int wmId = LOWORD(wParam);
-
+		case WM_COMMAND:
+		{
+			int wmId = LOWORD(wParam);
 			if ((wmId & GRID_BUTTON) == GRID_BUTTON)
 			{
-				unpaintId = allPlayerPositions[getThisClientID()];
-				allPlayerPositions[getThisClientID()] = wmId & (~GRID_BUTTON);						////////////////////////////////////////////////////	BUTTON CLICKS HERE
-				if (!redrawTile(allPlayerPositions[getThisClientID()], unpaintId))
+				BYTE pID = getThisPlayerID();
+				BYTE unpaintId = allPlayerPositions[pID], clickedTile = wmId & 0xff;
+				allPlayerPositions[pID] = clickedTile;						////////////////////////////////////////////////////	BUTTON CLICKS HERE
+				if (!redrawTile(clickedTile, unpaintId))
 				{
 					DestroyWindow(hWnd);
 					break;
 				}
+				if (isPlayerConnected())
+				{
+					sendToServer(CLICK_TILE, clickedTile);
+				}
 			}
 			if ((wmId & OLMPART_BUTTON) == OLMPART_BUTTON)
 			{
-				OlmPart clickedPart = (OlmPart) (wmId & (~OLMPART_BUTTON));
+				OlmPart clickedPart = (OlmPart) (wmId & 0xff);
+				if (isPlayerConnected())
+				{
+					sendToServer(CLICK_PART, clickedPart);
+				}
 			}
 
-            // Parse the menu selections:
-            switch (wmId)
-            {
+			// Parse the menu selections:
+			switch (wmId)
+			{
 				case MENU_HOST:
 					DialogBox(hInst, MAKEINTRESOURCE(DIALOG_HOST), hWnd, &hostServer);
 					break;
@@ -192,43 +197,125 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					break;
 				default:
 					return DefWindowProc(hWnd, message, wParam, lParam);
-            }
-        }
-        break;
-	case WM_DRAWITEM:
-	{
-		if (wParam == (GRID_BUTTON | allPlayerPositions[getThisClientID()]))
-		{
-			LPDRAWITEMSTRUCT lpDIS = (LPDRAWITEMSTRUCT) lParam;
-			SetDCBrushColor(lpDIS->hDC, allPlayerColors[getThisClientID()]);
-			SelectObject(lpDIS->hDC, GetStockObject(DC_BRUSH));
-			RoundRect(lpDIS->hDC, lpDIS->rcItem.left, lpDIS->rcItem.top, lpDIS->rcItem.right, lpDIS->rcItem.bottom, 0, 0);
-		}/*
-		else if (wParam == (GRID_BUTTON | unpaintId))
-		{
-
-		}*/
-		else
-		{
-			LPDRAWITEMSTRUCT lpDIS = (LPDRAWITEMSTRUCT) lParam;
-			SelectObject(lpDIS->hDC, GetStockObject(DC_BRUSH));
-			RoundRect(lpDIS->hDC, lpDIS->rcItem.left, lpDIS->rcItem.top, lpDIS->rcItem.right, lpDIS->rcItem.bottom, 0, 0);
+			}
+			break;
 		}
-	}
-	break;
-    case WM_PAINT:
-        {
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hWnd, &ps);
-            // TODO: Add any drawing code that uses hdc here...
-            EndPaint(hWnd, &ps);
-        }
-        break;
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        break;
-    default:
-        return DefWindowProc(hWnd, message, wParam, lParam);
+		case WM_MULTIPLAYER:
+		{
+			Command command = (Command) wParam;
+			ValueAndSenderID vsid = *(ValueAndSenderID*) lParam;
+			free((ValueAndSenderID*) lParam);
+			dwprintf(L"Player %d sent %d: %llu\n", vsid.sender, command, vsid.value);
+
+			switch (command)
+			{
+				case CHANGE_COLOR:
+				{
+					allPlayerColors[vsid.sender] = vsid.value;
+					break;
+				}
+				case CLICK_TILE:
+				{
+					BYTE player = vsid.sender, tile = vsid.value;
+					BYTE previousTile = allPlayerPositions[player];
+					allPlayerPositions[player] = tile;
+					redrawTile(tile, previousTile);
+					allPlayerPositions[player] = tile;
+					break;
+				}
+				case CLICK_PART:
+				{
+					break;
+				}
+				case CHANGE_WEAPON:
+				{
+					break;
+				}
+				case CHANGE_OLM_LOC:
+				{
+					break;
+				}
+				case TOGGLE_RUN:
+				{
+					break;
+				}
+				default:
+				{
+					break;
+				}
+			}
+		}
+		case WM_DRAWITEM:
+		{
+			int wmId = LOWORD(wParam);
+			if ((wmId & GRID_BUTTON) == GRID_BUTTON)
+			{
+				BYTE playerCount = getPlayerCount();
+				BYTE *playersOnThisTile = (BYTE*) malloc(playerCount);	//boolean array
+				BYTE tile = wmId & 0xff, playerCountOnThisTile = 0, thisPlayerOnThisTile = FALSE;
+				for (BYTE i = 0; i < playerCount; i++)
+				{
+					if (tile == allPlayerPositions[i])
+					{
+						playersOnThisTile[playerCountOnThisTile++] = i;
+						if (i == getThisPlayerID())
+						{
+							thisPlayerOnThisTile = TRUE;
+						}
+					}
+				}
+				LPDRAWITEMSTRUCT lpDIS = (LPDRAWITEMSTRUCT) lParam;
+				if (thisPlayerOnThisTile)
+				{
+					SetDCBrushColor(lpDIS->hDC, allPlayerColors[getThisPlayerID()]);
+					SelectObject(lpDIS->hDC, GetStockObject(DC_BRUSH));
+					RoundRect(lpDIS->hDC, lpDIS->rcItem.left, lpDIS->rcItem.top, lpDIS->rcItem.right, lpDIS->rcItem.bottom, 0, 0);
+					if (playerCountOnThisTile > 1)
+					{
+						SetDCBrushColor(lpDIS->hDC, ~allPlayerColors[getThisPlayerID()]);
+						WCHAR buffer[4];
+						swprintf_s(buffer, L"%d", playerCountOnThisTile - 1);
+						DrawTextW(lpDIS->hDC, buffer, -1, &(lpDIS->rcItem), DT_CENTER);
+					}
+				}
+				else if (playerCountOnThisTile)
+				{
+					SetDCBrushColor(lpDIS->hDC, allPlayerColors[playersOnThisTile[0]]);
+					SelectObject(lpDIS->hDC, GetStockObject(DC_BRUSH));
+					RoundRect(lpDIS->hDC, lpDIS->rcItem.left, lpDIS->rcItem.top, lpDIS->rcItem.right, lpDIS->rcItem.bottom, 0, 0);
+					if (playerCountOnThisTile > 1)
+					{
+						SetDCBrushColor(lpDIS->hDC, ~allPlayerColors[playersOnThisTile[0]]);
+						WCHAR buffer[4];
+						swprintf_s(buffer, L"%d", playerCountOnThisTile - 1);
+						DrawTextW(lpDIS->hDC, buffer, -1, &(lpDIS->rcItem), DT_CENTER);
+					}
+				}
+				else
+				{
+					SelectObject(lpDIS->hDC, GetStockObject(DC_BRUSH));
+					RoundRect(lpDIS->hDC, lpDIS->rcItem.left, lpDIS->rcItem.top, lpDIS->rcItem.right, lpDIS->rcItem.bottom, 0, 0);
+				}
+				free(playersOnThisTile);
+			}
+			break;
+		}
+		case WM_PAINT:	//not mine
+		{
+			PAINTSTRUCT ps;
+			HDC hdc = BeginPaint(hWnd, &ps);
+			// TODO: Add any drawing code that uses hdc here...
+			EndPaint(hWnd, &ps);
+			break;
+		}
+		case WM_DESTROY:
+		{
+			WSACleanup();
+			PostQuitMessage(0);
+			break;
+		}
+		default:
+			return DefWindowProc(hWnd, message, wParam, lParam);
     }
     return 0;
 }
@@ -325,12 +412,13 @@ INT_PTR CALLBACK hostServer(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
 				}
 				case IDOK:
 				{
-					WCHAR buffer[128], PORTstr[8], PASSstr[40];
+					WCHAR PORTstr[8], PASSstr[40];
 					HWND editPort = GetDlgItem(hDlg, EDIT_PORT), editPass = GetDlgItem(hDlg, EDIT_PASSWORD);
 					GetWindowText(editPort, PORTstr, 8);
 					GetWindowText(editPass, PASSstr, 40);
-					swprintf_s(buffer, L"HOST:%d - %s\n", _tstoi(PORTstr), PASSstr);
-					OutputDebugString(buffer);
+					//dwprintf(L"HOST:%d - %s\n", _tstoi(PORTstr), PASSstr);
+					WSA();
+					startServer(_tstoi(PORTstr), PASSstr);
 					EndDialog(hDlg, LOWORD(wParam));
 					return (INT_PTR) TRUE;
 				}
@@ -397,13 +485,14 @@ INT_PTR CALLBACK joinServer(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
 				}
 				case IDOK:
 				{
-					WCHAR buffer[128], IPstr[16], PORTstr[8], PASSstr[40];
+					WCHAR IPstr[16], PORTstr[8], PASSstr[40];
 					HWND editIP = GetDlgItem(hDlg, EDIT_IP), editPort = GetDlgItem(hDlg, EDIT_PORT), editPass = GetDlgItem(hDlg, EDIT_PASSWORD);
 					GetWindowText(editIP, IPstr, 16);
 					GetWindowText(editPort, PORTstr, 8);
 					GetWindowText(editPass, PASSstr, 40);
-					swprintf_s(buffer, L"JOIN: %s:%d - %s\n", IPstr, _tstoi(PORTstr), PASSstr);
-					OutputDebugString(buffer);
+					//dwprintf(L"JOIN: %s:%d - %s\n", IPstr, _tstoi(PORTstr), PASSstr);
+					WSA();
+					startClient((HWND) GetWindowLongPtr(hDlg, GWLP_HWNDPARENT), IPstr, _tstoi(PORTstr), PASSstr);
 					EndDialog(hDlg, LOWORD(wParam));
 					return (INT_PTR) TRUE;
 				}
@@ -433,7 +522,7 @@ INT_PTR CALLBACK changeColor(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 			changedByCode = TRUE;
 			HWND red = GetDlgItem(hDlg, COLOR_RED), green = GetDlgItem(hDlg, COLOR_GREEN), blue = GetDlgItem(hDlg, COLOR_BLUE);
 			WCHAR REDstr[4], GREENstr[4], BLUEstr[4];
-			COLORREF current = allPlayerColors[getThisClientID()];
+			COLORREF current = allPlayerColors[getThisPlayerID()];
 			_itow_s((BYTE) (current >> 0), REDstr, 10);
 			_itow_s((BYTE) (current >> 8), GREENstr, 10);
 			_itow_s((BYTE) (current >> 16), BLUEstr, 10);
@@ -499,8 +588,12 @@ INT_PTR CALLBACK changeColor(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 					GetWindowText(green, GREENstr, 4);
 					GetWindowText(blue, BLUEstr, 4);
 					short r = _tstoi(REDstr), g = _tstoi(GREENstr), b = _tstoi(BLUEstr);
-					allPlayerColors[getThisClientID()] = RGB(r, g, b);
+					allPlayerColors[getThisPlayerID()] = RGB(r, g, b);
 					EndDialog(hDlg, LOWORD(wParam));
+					if (isPlayerConnected())
+					{
+						sendToServer(CHANGE_COLOR, RGB(r, g, b));
+					}
 					return (INT_PTR) TRUE;
 				}
 				case IDCANCEL:
