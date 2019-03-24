@@ -12,4 +12,6 @@ enum Orientation
 BOOL initGrid(HWND m_hwnd);
 BOOL rotateGrid(Orientation o);
 
-BOOL redrawTile(unsigned char newPos, unsigned char oldPos);
+BOOL redrawTile(BYTE index);
+BOOL redrawTwoTiles(BYTE newPos, BYTE oldPos);
+BOOL redrawAllTiles();

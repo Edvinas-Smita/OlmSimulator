@@ -19,6 +19,10 @@
 #define MENU_HOST                       32771
 #define MENU_JOIN                       32772
 #define MENU_CHANGE_COLOR               32774
+#define ID_MULTIPLAYER_STOPSERVER       32775
+#define ID_MULTIPLAYER_STOPCLIENT       32776
+#define MENU_STOP_SERVER                32777
+#define MENU_STOP_CLIENT                32778
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
@@ -27,7 +31,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        135
-#define _APS_NEXT_COMMAND_VALUE         32775
+#define _APS_NEXT_COMMAND_VALUE         32779
 #define _APS_NEXT_CONTROL_VALUE         1012
 #define _APS_NEXT_SYMED_VALUE           110
 #endif

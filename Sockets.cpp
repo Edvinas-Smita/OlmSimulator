@@ -2,21 +2,33 @@
 
 BOOL WSAstarted = FALSE;
 
+HANDLE acceptorHand = nullptr, pollerHand = nullptr, clientPollerHand = nullptr;	//infinte loop handles
+
 SOCKET serverSocket = INVALID_SOCKET;
-SOCKET connectedSockets[MAX_CONS] = {INVALID_SOCKET};
-sockaddr_in connectedAddrs[MAX_CONS] = {{0}};
-BYTE currentConSockCount = 0;
-BYTE playerCount = 0;
-BYTE getPlayerCount(){return playerCount;}
+BYTE isServerRunning()
+{
+	return serverSocket != INVALID_SOCKET;
+}
+SOCKET connectedSockets[MAX_CONS];
+sockaddr_in connectedAddrs[MAX_CONS];
+BYTE currentConSockCount = 0;	//server count of connected sockets
 
 SOCKET thisClientSocket = INVALID_SOCKET;
-BYTE thisClientIDInServer = 0;
-BYTE getThisPlayerID(){return thisClientIDInServer;}
-
 BYTE isPlayerConnected()
 {
 	return thisClientSocket != INVALID_SOCKET;
 }
+BYTE playerCount = 0;			//client count of other clients in the server
+BYTE getPlayerCount()
+{
+	return playerCount;
+}
+BYTE thisClientIDInServer = 0;
+BYTE getThisPlayerID()
+{
+	return thisClientIDInServer;
+}
+
 int WSA()
 {
 	if (!WSAstarted)
@@ -30,17 +42,43 @@ int WSA()
 	}
 	return 0;
 }
+int deWSA()
+{
+	if (WSAstarted)
+	{
+		if (int errorVal = WSACleanup())
+		{
+			dwprintf(L"WSACleanup failed(???????): %d\n", errorVal);
+			return 1;
+		}
+	}
+	return 0;
+}
+int checkDeWSA()
+{
+	if (thisClientSocket == INVALID_SOCKET && serverSocket == INVALID_SOCKET)
+	{
+		return deWSA();
+	}
+	return 0;
+}
 void deleteArrayElementAndCollapse(void *arr, int deleteIndex, int elementSize, int elementCount, void *filler)
 {
-	BYTE *ptr = (BYTE*) arr;
+	memmove_s(
+		(BYTE*) arr + deleteIndex * elementSize,
+		(elementCount - deleteIndex) * elementSize,
+		(BYTE*) arr + (deleteIndex + 1) * elementSize,
+		(elementCount - deleteIndex - 1) * elementSize
+	);
+	/*BYTE *ptr = (BYTE*) arr;
 	for (int i = deleteIndex * elementSize; i < elementSize * (elementCount - 1); i++)
 	{
 		ptr[i] = ptr[i + elementSize];
 	}
-	BYTE *fill = (BYTE*) filler;
+	BYTE *fill = (BYTE*) filler;*/
 	for (int i = elementSize - 1; i >= 0; i--)
 	{
-		ptr[elementSize * (elementCount - 1) + i] = fill[i];
+		((BYTE*) arr)[elementSize * (elementCount - 1) + i] = ((BYTE*) filler)[i];
 	}
 }
 void dwprintf(const WCHAR *format, ...)
@@ -54,13 +92,11 @@ void dwprintf(const WCHAR *format, ...)
 }
 
 
-void actualAccept(SOCKET sock, sockaddr_in addr, int *waitingCount)
+void actualAccept(SOCKET sock, sockaddr_in addr, int *waitingCount, COLORREF *allPlayerColors, BYTE *allPlayerPositions)
 {
-	sendToClients(PLAYER_JOIN, currentConSockCount, currentConSockCount);	//not sending the new client data because it will still need the rest of the data
-
 	(*waitingCount)--;
 	BYTE response = CF_ACCEPT;
-	connectedSockets[currentConSockCount++] = sock;
+	connectedSockets[currentConSockCount] = sock;
 	connectedAddrs[currentConSockCount] = addr;
 
 	int err = send(sock, (char *) &response, 1, 0);
@@ -69,17 +105,21 @@ void actualAccept(SOCKET sock, sockaddr_in addr, int *waitingCount)
 		dwprintf(L"send failed: %d\n", WSAGetLastError());
 	}
 
-	/*TODO send the existing data to client:
-	client id
-	all player count
-	all player positions | WINAPI
-	all player colors | WINAPI
-	statistics | ?
-	*/
+	CatchupData data;
+	data.playerCount = currentConSockCount;
+	memcpy_s(&data.allPlayerColors, sizeof(data.allPlayerColors), allPlayerColors, MAX_CONS * sizeof(COLORREF));
+	memcpy_s(&data.allPlayerPositions, sizeof(data.allPlayerPositions), allPlayerPositions, MAX_CONS * sizeof(BYTE));
+	err = send(sock, (char *) &data, sizeof(CatchupData), 0);
+	if (err == SOCKET_ERROR)
+	{
+		dwprintf(L"send failed: %d\n", WSAGetLastError());
+	}
 
+	sendToClients(PLAYER_JOIN, currentConSockCount, currentConSockCount);
 	wchar_t b[16];
 	dwprintf(L"A client has connected. id in application: %d, SOCKET: %d, address: %s:%d\n",
 			 currentConSockCount, sock, InetNtopW(AF_INET, &addr.sin_addr, b, 16), addr.sin_port);
+	currentConSockCount++;
 }
 void actualReject(SOCKET sock, int *waitingCount, BYTE reasons)
 {
@@ -139,14 +179,14 @@ DWORD WINAPI acceptorAuth(PVOID args)
 
 	if (wcscmp(buffer, aargs->pass) == 0)
 	{
-		actualAccept(aargs->sock, aargs->addr, aargs->nWaitingForAuth);
+		actualAccept(aargs->sock, aargs->addr, aargs->nWaitingForAuth, aargs->allPlayerColors, aargs->allPlayerPositions);
 	}
 	else
 	{
 		actualReject(aargs->sock, aargs->nWaitingForAuth, REASON_INVALPASS);
 	}
 
-	//free(aargs);
+	free(aargs);
 	return 0;
 }
 DWORD WINAPI acceptor(PVOID args)
@@ -174,7 +214,12 @@ DWORD WINAPI acceptor(PVOID args)
 
 		++i;
 		AcceptorAuth_Args *aaargs = (AcceptorAuth_Args*) malloc(sizeof(AcceptorAuth_Args));
-		*aaargs = {&i, potentialSocket, potentialAddr, arg.pass};
+		aaargs->nWaitingForAuth = &i;
+		aaargs->sock = potentialSocket;
+		aaargs->addr = potentialAddr;
+		aaargs->pass = arg.pass;
+		aaargs->allPlayerColors = arg.allPlayerColors;
+		aaargs->allPlayerPositions = arg.allPlayerPositions;
 		DWORD acceptorThrID;
 		HANDLE acceptorHand = CreateThread(NULL, 0, &acceptorAuth, aaargs, 0, &acceptorThrID);
 	}
@@ -184,32 +229,22 @@ DWORD WINAPI acceptor(PVOID args)
 
 void receiver(SOCKET socket, int socketID)
 {
-	int nBytes, err;
-	char buffer[sizeof(CmdVal)] = {0};
-	nBytes = recv(socket, (char*) buffer, sizeof(buffer) / sizeof(*buffer), MSG_PEEK);
-	if (nBytes == SOCKET_ERROR)
-	{
-		dwprintf(L"recv peek failed: %d\n", WSAGetLastError());
-		return;
-	}
-
-	nBytes = recv(socket, (char*) buffer, nBytes, 0);
-	if (nBytes == SOCKET_ERROR)
+	int err;
+	CmdVal commandAndValue;
+	err = recv(socket, (char*) &commandAndValue, sizeof(CmdVal), 0);
+	if (err == SOCKET_ERROR)
 	{
 		dwprintf(L"recv failed: %d\n", WSAGetLastError());
 		return;
 	}
-	
-	CmdVal *commandAndValue = (CmdVal*) buffer;
-	sendToClients(commandAndValue->cmd, commandAndValue->val, socketID);
-	/*dwprintf(L"%d bytes recvd from [%d]: %s\n", nBytes, socketID, buffer);
 
-	err = send(socket, (char*) buffer, nBytes, 0);
-	if (err == SOCKET_ERROR)
+	if (commandAndValue.cmd == PLAYER_QUIT)
 	{
-		dwprintf(L"send failed: %d\n", WSAGetLastError());
-		return;
-	}*/
+		SOCKET inval = INVALID_SOCKET;
+		deleteArrayElementAndCollapse((void *) connectedSockets, socketID, sizeof(SOCKET), currentConSockCount--, &inval);
+	}
+	
+	sendToClients(commandAndValue.cmd, commandAndValue.val, socketID);
 }
 DWORD WINAPI poller(PVOID args)
 {
@@ -237,7 +272,7 @@ DWORD WINAPI poller(PVOID args)
 		}
 		else if (errorVal)
 		{
-			dwprintf(L"%d sockets are piping up...\n", errorVal);
+			//dwprintf(L"%d sockets are piping up...\n", errorVal);
 			for (i = 0; i < currentConSockCount; i++)
 			{
 				if (pfd[i].revents & POLLERR)
@@ -309,8 +344,8 @@ void handleMessageFromServer(HWND msgback)
 
 	if (senderCommandAndValue.cmd == PLAYER_JOIN)
 	{
-		playerCount = senderCommandAndValue.val;
-		return;
+		playerCount++;// = senderCommandAndValue.sender;
+		//return;
 	}
 	else if (senderCommandAndValue.cmd == PLAYER_QUIT)
 	{
@@ -319,7 +354,10 @@ void handleMessageFromServer(HWND msgback)
 		{
 			thisClientIDInServer--;
 		}
-		return;
+	}
+	if (senderCommandAndValue.cmd == SERVER_CLOSED)
+	{
+		dwprintf(L"Server closed (clean)\n");
 	}
 
 	ValueAndSenderID *vsid = (ValueAndSenderID*) malloc(sizeof(ValueAndSenderID));
@@ -342,8 +380,9 @@ DWORD WINAPI clientPoller(PVOID args)
 		else
 		{
 			if (pfd.revents & POLLERR)
-			{	
-				//TODO server closed behaviour
+			{
+				dwprintf(L"Server closed (not clean)\n");
+				SendMessage((HWND) args, WM_MULTIPLAYER, SERVER_CLOSED, (LPARAM) nullptr);
 			}
 			else if (pfd.revents & POLLIN)
 			{
@@ -358,7 +397,7 @@ DWORD WINAPI clientPoller(PVOID args)
 	return MAXDWORD;
 }
 
-int startServer(USHORT port, LPCWSTR pass)
+int startServer(USHORT port, LPCWSTR pass, COLORREF *allPlayerColors, BYTE *allPlayerPositions)
 {
 	SOCKET sock = setupListenSocket(SOCK_ADDR, port);
 	if (sock == INVALID_SOCKET)
@@ -366,21 +405,29 @@ int startServer(USHORT port, LPCWSTR pass)
 		dwprintf(L"listen socket setup failed: %d\n", WSAGetLastError());
 		return 1;
 	}
+	serverSocket = sock;
 
-	DWORD pollerThreadId;
-	HANDLE pollerHand = CreateThread(NULL, 0, &poller, nullptr, 0, &pollerThreadId);
+	for (BYTE i = 0; i < MAX_CONS; i++)
+	{
+		connectedSockets[i] = INVALID_SOCKET;
+	}
 
 	Acceptor_Args *aargs = (Acceptor_Args*) malloc(sizeof(Acceptor_Args));
 	LPWSTR passCopy = (LPWSTR) malloc(256 * sizeof(WCHAR));
 	lstrcpyW(passCopy, pass);
-	*aargs = {sock, passCopy};
+	aargs->sock = sock;
+	aargs->pass = passCopy;
+	aargs->allPlayerColors = allPlayerColors;
+	aargs->allPlayerPositions = allPlayerPositions;
 	DWORD acceptorThreadId;
-	HANDLE acceptorHand = CreateThread(NULL, 0, &acceptor, aargs, 0, &acceptorThreadId);
+	acceptorHand = CreateThread(NULL, 0, &acceptor, aargs, 0, &acceptorThreadId);
 
-	serverSocket = sock;
+	DWORD pollerThreadId;
+	pollerHand = CreateThread(NULL, 0, &poller, nullptr, 0, &pollerThreadId);
+
 	return 0;
 }
-int startClient(HWND msgback, LPCWSTR ip, USHORT port, LPCWSTR pass)
+int startClient(HWND msgback, LPCWSTR ip, USHORT port, LPCWSTR pass, COLORREF *allPlayerColors, BYTE *allPlayerPositions)
 {
 #pragma region initialisation
 	//Defining socket structures
@@ -398,6 +445,7 @@ int startClient(HWND msgback, LPCWSTR ip, USHORT port, LPCWSTR pass)
 	addr.sin_port = htons(port);
 
 	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	thisClientSocket = sock;
 	if (sock == INVALID_SOCKET)
 	{
 		errorVal = WSAGetLastError();
@@ -415,7 +463,7 @@ int startClient(HWND msgback, LPCWSTR ip, USHORT port, LPCWSTR pass)
 	}
 #pragma endregion
 #pragma region authentication
-	errorVal = send(sock, (char*) pass, wcslen((wchar_t*) pass) * 2, 0);
+	errorVal = send(sock, (char*) pass, wcslen((wchar_t*) pass) * 2 + 1, 0);
 	if (errorVal == SOCKET_ERROR)
 	{
 		errorVal = WSAGetLastError();
@@ -424,7 +472,7 @@ int startClient(HWND msgback, LPCWSTR ip, USHORT port, LPCWSTR pass)
 	}
 	BYTE auth;
 	errorVal = recv(sock, (char*) &auth, 1, 0);
-	//expecting to receive 2 bytes (short): id on server (if success) and success flags (CF_ACCEPT / CF_REJECT + reason)
+	//expecting to receive 1 byte: success flags (CF_ACCEPT / CF_REJECT + reason)
 	if (errorVal == SOCKET_ERROR)
 	{
 		errorVal = WSAGetLastError();
@@ -435,12 +483,12 @@ int startClient(HWND msgback, LPCWSTR ip, USHORT port, LPCWSTR pass)
 	{
 		errorVal = WSAGetLastError();
 		dwprintf(L"Server closed connection\n");
-		return errorVal;
+		return -1;
 	}
 	else if (errorVal != 1)
 	{
 		errorVal = WSAGetLastError();
-		dwprintf(L"Wrong response from server\n");
+		dwprintf(L"(Client auth) Wrong response from server\n");
 		return errorVal;
 	}
 	else if ((auth & CF_REJECT) == CF_REJECT)
@@ -450,20 +498,76 @@ int startClient(HWND msgback, LPCWSTR ip, USHORT port, LPCWSTR pass)
 		return errorVal;
 	}
 #pragma endregion
+#pragma region catchup
+	CatchupData data;
+	errorVal = recv(sock, (char*) &data, sizeof(CatchupData), 0);
+	if (errorVal == SOCKET_ERROR)
+	{
+		errorVal = WSAGetLastError();
+		dwprintf(L"recv failed: %d\n", errorVal);
+		return errorVal;
+	}
+	else if (errorVal == 0)
+	{
+		errorVal = WSAGetLastError();
+		dwprintf(L"Server closed connection\n");
+		return -1;
+	}
+	else if (errorVal != sizeof(data))
+	{
+		errorVal = WSAGetLastError();
+		dwprintf(L"(Catchup) Wrong response from server\n");
+		return errorVal;
+	}
+	thisClientIDInServer = playerCount = data.playerCount;
+	memcpy_s(allPlayerColors, MAX_CONS * sizeof(COLORREF), &data.allPlayerColors, MAX_CONS * sizeof(COLORREF));
+	memcpy_s(allPlayerPositions, MAX_CONS * sizeof(BYTE), &data.allPlayerPositions, MAX_CONS * sizeof(BYTE));
 
-	thisClientSocket = sock;
-	//thisClientIDInServer = auth >> 8;
-	//TODO receive the existing data from server.
+	SendMessage(msgback, WM_MULTIPLAYER, DATA_CATCHUP, (LPARAM) nullptr);
+#pragma endregion
+
+
 	DWORD pollerThreadID;
-	HANDLE poller = CreateThread(NULL, 0, &clientPoller, msgback, 0, &pollerThreadID);
+	clientPollerHand = CreateThread(NULL, 0, &clientPoller, msgback, 0, &pollerThreadID);
 	return 0;
+}
+
+void stopServer()
+{
+	TerminateThread(acceptorHand, 0);
+	TerminateThread(pollerHand, 0);
+	WaitForSingleObject(sendToClients(SERVER_CLOSED, 0, 0), INFINITE);
+	for (BYTE i = 0; i < currentConSockCount; i++)
+	{
+		closesocket(connectedSockets[i]);
+		connectedSockets[i] = INVALID_SOCKET;
+		connectedAddrs[i] = {0};
+	}
+	closesocket(serverSocket);
+	serverSocket = INVALID_SOCKET;
+	currentConSockCount = 0;
+
+	checkDeWSA();
+}
+void stopClient(BOOL manual)
+{
+	TerminateThread(clientPollerHand, 0);
+	if (manual)
+	{
+		WaitForSingleObject(sendToServer(PLAYER_QUIT, 1), INFINITE);
+	}
+	closesocket(thisClientSocket);
+	thisClientSocket = INVALID_SOCKET;
+	playerCount = 0;
+	thisClientIDInServer = 0;
+
+	checkDeWSA();
 }
 
 DWORD WINAPI sendToServerThreadStart(PVOID args)
 {
-	CmdVal *ov = (CmdVal*) args;
-	int errorVal = send(thisClientSocket, (char*) ov, sizeof(CmdVal), 0);
-	free(ov);
+	int errorVal = send(thisClientSocket, (char*) args, sizeof(CmdVal), 0);
+	free(args);
 	if (errorVal == SOCKET_ERROR)
 	{
 		errorVal = WSAGetLastError();
@@ -472,38 +576,35 @@ DWORD WINAPI sendToServerThreadStart(PVOID args)
 	}
 	return 0;
 }
-int sendToServer(Command command, UINT64 value)
+HANDLE sendToServer(Command command, UINT64 value)
 {
 	CmdVal *args = (CmdVal*) malloc(sizeof(CmdVal));
 	*args = {command, value};
 	DWORD threadID;
-	HANDLE thread = CreateThread(NULL, 0, &sendToServerThreadStart, args, 0, &threadID);
-	return 0;
+	return CreateThread(NULL, 0, &sendToServerThreadStart, args, 0, &threadID);
 }
 
 DWORD WINAPI sendToClientsThreadStart(PVOID args)
 {
-	SenderCmdVal *sov = (SenderCmdVal*) args;
 	for (BYTE i = 0; i < currentConSockCount; i++)
 	{
-		int err = send(connectedSockets[i], (char*) sov, sizeof(SenderCmdVal), 0);
+		int err = send(connectedSockets[i], (char*) args, sizeof(SenderCmdVal), 0);
 		if (err == SOCKET_ERROR)
 		{
 			err = WSAGetLastError();
 			dwprintf(L"send failed: %d\n", err);
-			free(sov);
+			free(args);
 			return err;
 		}
 	}
-	free(sov);
+	free(args);
 	return 0;
 }
-int sendToClients(Command command, UINT64 value, BYTE senderID)
+HANDLE sendToClients(Command command, UINT64 value, BYTE senderID)
 {
 	SenderCmdVal *args = (SenderCmdVal*) malloc(sizeof(SenderCmdVal));
 	*args = {senderID, command, value};
 	DWORD threadID;
-	HANDLE thread = CreateThread(NULL, 0, &sendToClientsThreadStart, args, 0, &threadID);
-	return 0;
+	return CreateThread(NULL, 0, &sendToClientsThreadStart, args, 0, &threadID);
 }
 

@@ -28,9 +28,10 @@
 #define WM_MULTIPLAYER 0x5555
 enum Command
 {
-	DATA_CATCHUP = -1,
 	PLAYER_JOIN,
+	DATA_CATCHUP,
 	PLAYER_QUIT,
+	SERVER_CLOSED,
 	CHANGE_COLOR,
 	CLICK_TILE,
 	CLICK_PART,
@@ -39,13 +40,28 @@ enum Command
 	TOGGLE_RUN,
 };
 
-BYTE getThisPlayerID();
-BYTE getPlayerCount();
-BYTE isPlayerConnected();
-int WSA();
-void deleteArrayElementAndCollapse(void *arr, int deleteIndex, int elementSize, int elementCount, void *filler);
-void dwprintf(const WCHAR *format, ...);	//unrelated to sockets
+BYTE			isServerRunning();
+BYTE			getThisPlayerID();
+BYTE			getPlayerCount();
+BYTE			isPlayerConnected();
+int				WSA();
+int				deWSA();
+int				checkDeWSA();
+void			deleteArrayElementAndCollapse(void *arr, int deleteIndex, int elementSize, int elementCount, void *filler);
+void			dwprintf(const WCHAR *format, ...);	//unrelated to sockets
 
+struct CatchupData
+{
+	BYTE playerCount;
+	COLORREF allPlayerColors[MAX_CONS];
+	BYTE allPlayerPositions[MAX_CONS];
+	/*
+	TODO add more data
+	statistics - ?
+		total clicks
+		total clicks on parts
+	*/
+};
 
 struct CmdVal
 {
@@ -70,33 +86,40 @@ struct AcceptorAuth_Args
 	SOCKET sock;
 	sockaddr_in addr;
 	LPWSTR pass;
+	COLORREF *allPlayerColors;
+	BYTE *allPlayerPositions;
 };
 struct Acceptor_Args
 {
 	SOCKET sock;
 	LPWSTR pass;
+	COLORREF *allPlayerColors;
+	BYTE *allPlayerPositions;
 };
 
 
-void actualAccept(SOCKET sock, sockaddr_in addr, int *waitingCount);
-void actualReject(SOCKET sock, int *waitingCount, unsigned char reasons);
-DWORD WINAPI acceptorAuth(PVOID args);
-DWORD WINAPI acceptor(PVOID args);
+void			actualAccept(SOCKET sock, sockaddr_in addr, int *waitingCount, COLORREF *allPlayerColors, BYTE *allPlayerPositions);
+void			actualReject(SOCKET sock, int *waitingCount, BYTE reasons);
+DWORD WINAPI	acceptorAuth(PVOID args);
+DWORD WINAPI	acceptor(PVOID args);
 
-void receiver(SOCKET socket, int socketID);
-DWORD WINAPI poller(PVOID args);
-SOCKET setupListenSocket(PCSTR ip, unsigned short port);
+void			receiver(SOCKET socket, int socketID);
+DWORD WINAPI	poller(PVOID args);
+SOCKET			setupListenSocket(PCSTR ip, unsigned short port);
 
-void handleMessageFromServer(HWND msgback);
-DWORD WINAPI clientPoller(PVOID args);
+void			handleMessageFromServer(HWND msgback);
+DWORD WINAPI	clientPoller(PVOID args);
 
-int startServer(USHORT port, LPCWSTR pass);
-int startClient(HWND msgback, LPCWSTR ip, USHORT port, LPCWSTR pass);
+int				startServer(USHORT port, LPCWSTR pass, COLORREF *allPlayerColors, BYTE *allPlayerPositions);
+int				startClient(HWND msgback, LPCWSTR ip, USHORT port, LPCWSTR pass, COLORREF *allPlayerColors, BYTE *allPlayerPositions);
 
-DWORD WINAPI sendToServerThreadStart(PVOID args);
-int sendToServer(Command command, UINT64 value);
+void			stopServer();
+void			stopClient(BOOL manual = TRUE);
 
-DWORD WINAPI sendToClientsThreadStart(PVOID args);
-int sendToClients(Command command, UINT64 value, BYTE senderID);
+DWORD WINAPI	sendToServerThreadStart(PVOID args);
+HANDLE			sendToServer(Command command, UINT64 value);
+
+DWORD WINAPI	sendToClientsThreadStart(PVOID args);
+HANDLE			sendToClients(Command command, UINT64 value, BYTE senderID);
 
 #endif // !SOCKET_HEADER

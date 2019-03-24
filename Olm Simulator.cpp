@@ -28,8 +28,8 @@ WNDPROC				old_control;
 Orientation			orientation = NorthUp;
 OlmLocation			olmLocation = West;
 
-COLORREF			allPlayerColors[MAX_CONS] = {{RGB(255, 0, 0)}};
-BYTE				allPlayerPositions[MAX_CONS] = {{203}};
+COLORREF			allPlayerColors[MAX_CONS] = {RGB(255, 0, 0)};
+BYTE				allPlayerPositions[MAX_CONS] = {203};
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
 {
@@ -163,15 +163,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				BYTE pID = getThisPlayerID();
 				BYTE unpaintId = allPlayerPositions[pID], clickedTile = wmId & 0xff;
-				allPlayerPositions[pID] = clickedTile;						////////////////////////////////////////////////////	BUTTON CLICKS HERE
-				if (!redrawTile(clickedTile, unpaintId))
-				{
-					DestroyWindow(hWnd);
-					break;
-				}
 				if (isPlayerConnected())
 				{
 					sendToServer(CLICK_TILE, clickedTile);
+					break;
+				}
+				allPlayerPositions[pID] = clickedTile;
+				if (!redrawTwoTiles(clickedTile, unpaintId))
+				{
+					DestroyWindow(hWnd);
+					break;
 				}
 			}
 			if ((wmId & OLMPART_BUTTON) == OLMPART_BUTTON)
@@ -187,31 +188,102 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			switch (wmId)
 			{
 				case MENU_HOST:
+				{
+					if (isServerRunning())
+					{
+						dwprintf(L"Server is already running!\n");
+						break;
+					}
 					DialogBox(hInst, MAKEINTRESOURCE(DIALOG_HOST), hWnd, &hostServer);
 					break;
+				}
 				case MENU_JOIN:
+				{
+					if (isPlayerConnected())
+					{
+						dwprintf(L"Client is already running!\n");
+						break;
+					}
 					DialogBox(hInst, MAKEINTRESOURCE(DIALOG_JOIN), hWnd, &joinServer);
 					break;
+				}
+				case MENU_STOP_SERVER:
+				{
+					if (isServerRunning())
+					{
+						stopServer();
+					}
+					break;
+				}
+				case MENU_STOP_CLIENT:
+				{
+					if (isPlayerConnected())
+					{
+						stopClient();
+					}
+					break;
+				}
 				case MENU_CHANGE_COLOR:
+				{
 					DialogBox(hInst, MAKEINTRESOURCE(DIALOG_COLOR), hWnd, &changeColor);
 					break;
+				}
 				default:
+				{
 					return DefWindowProc(hWnd, message, wParam, lParam);
+				}
 			}
 			break;
 		}
 		case WM_MULTIPLAYER:
 		{
 			Command command = (Command) wParam;
-			ValueAndSenderID vsid = *(ValueAndSenderID*) lParam;
-			free((ValueAndSenderID*) lParam);
-			dwprintf(L"Player %d sent %d: %llu\n", vsid.sender, command, vsid.value);
+			ValueAndSenderID vsid = {0};
+			if ((ValueAndSenderID*) lParam != nullptr)
+			{
+				vsid = *(ValueAndSenderID*) lParam;
+				free((ValueAndSenderID*) lParam);
+				dwprintf(L"Player %d sent %d: %llu\n", vsid.sender, command, vsid.value);
+			}
 
 			switch (command)
 			{
+				case PLAYER_JOIN:
+				{
+					allPlayerColors[getPlayerCount() - 1] = RGB(255, 0, 0);
+					allPlayerPositions[getPlayerCount() - 1] = 203;
+					redrawTile(203);
+					break;
+				}
+				case DATA_CATCHUP:
+				{
+					redrawAllTiles();
+					break;
+				}
+				case PLAYER_QUIT:
+				{
+					redrawTile(allPlayerPositions[vsid.sender]);
+					COLORREF fillerClr = 0;
+					BYTE fillerPos = 0;
+					deleteArrayElementAndCollapse(allPlayerColors, vsid.sender, sizeof(COLORREF), MAX_CONS, &fillerClr);
+					deleteArrayElementAndCollapse(allPlayerPositions, vsid.sender, sizeof(BYTE), MAX_CONS, &fillerPos);
+					break;
+				}
+				case SERVER_CLOSED:
+				{
+					for (BYTE i = 0; i < MAX_CONS; i++)
+					{
+						allPlayerColors[i] = 0;
+						allPlayerPositions[i] = 0;
+					}
+					stopClient(FALSE);
+					redrawAllTiles();
+					break;
+				}
 				case CHANGE_COLOR:
 				{
 					allPlayerColors[vsid.sender] = vsid.value;
+					redrawTile(allPlayerPositions[vsid.sender]);
 					break;
 				}
 				case CLICK_TILE:
@@ -219,8 +291,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					BYTE player = vsid.sender, tile = vsid.value;
 					BYTE previousTile = allPlayerPositions[player];
 					allPlayerPositions[player] = tile;
-					redrawTile(tile, previousTile);
-					allPlayerPositions[player] = tile;
+					redrawTwoTiles(tile, previousTile);
 					break;
 				}
 				case CLICK_PART:
@@ -233,6 +304,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				}
 				case CHANGE_OLM_LOC:
 				{
+					if (!rotateAllParts((OlmLocation) vsid.value, orientation))
+					{
+						DestroyWindow(main_hwnd);
+						break;
+					}
+					RECT wrecked = {0, 0, 525, 525};
+					RedrawWindow(main_hwnd, &wrecked, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
 					break;
 				}
 				case TOGGLE_RUN:
@@ -347,14 +425,23 @@ LRESULT CALLBACK ControlHandler(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_
 				}
 				else if ((wpl & OLMPOS_CONTROL) == OLMPOS_CONTROL)
 				{
-					olmLocation = (OlmLocation) ((wpl & (~CONTROL_BUTTON)) & (~OLMPOS_CONTROL));
-					if (!rotateAllParts(olmLocation, orientation))
+					if (!isServerRunning() && !isPlayerConnected())
 					{
-						DestroyWindow(main_hwnd);
+						olmLocation = (OlmLocation) ((wpl & (~CONTROL_BUTTON)) & (~OLMPOS_CONTROL));
+						if (!rotateAllParts(olmLocation, orientation))
+						{
+							DestroyWindow(main_hwnd);
+							break;
+						}
+						RECT wrecked = {0, 0, 525, 525};
+						RedrawWindow(main_hwnd, &wrecked, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
 						break;
 					}
-					RECT wrecked = {0, 0, 525, 525};
-					RedrawWindow(main_hwnd, &wrecked, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
+					else if (isServerRunning())
+					{
+						olmLocation = (OlmLocation) ((wpl & (~CONTROL_BUTTON)) & (~OLMPOS_CONTROL));
+						sendToClients(CHANGE_OLM_LOC, olmLocation, 0);
+					}
 				}
 			}
 		}
@@ -374,7 +461,8 @@ INT_PTR CALLBACK hostServer(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
 		case WM_INITDIALOG:
 		{
 			changedByCode = TRUE;
-			HWND editPort = GetDlgItem(hDlg, EDIT_PORT);
+			HWND editIP = GetDlgItem(hDlg, EDIT_IP), editPort = GetDlgItem(hDlg, EDIT_PORT);
+			SetWindowText(editIP, L"127.0.0.1");
 			SetWindowText(editPort, L"27015");
 			return (INT_PTR) TRUE;
 		}
@@ -412,13 +500,19 @@ INT_PTR CALLBACK hostServer(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
 				}
 				case IDOK:
 				{
-					WCHAR PORTstr[8], PASSstr[40];
-					HWND editPort = GetDlgItem(hDlg, EDIT_PORT), editPass = GetDlgItem(hDlg, EDIT_PASSWORD);
+					WCHAR IPstr[16], PORTstr[8], PASSstr[40];
+					HWND editIP = GetDlgItem(hDlg, EDIT_IP), editPort = GetDlgItem(hDlg, EDIT_PORT), editPass = GetDlgItem(hDlg, EDIT_PASSWORD);
+					GetWindowText(editIP, IPstr, 16);
 					GetWindowText(editPort, PORTstr, 8);
 					GetWindowText(editPass, PASSstr, 40);
-					//dwprintf(L"HOST:%d - %s\n", _tstoi(PORTstr), PASSstr);
+					//dwprintf(L"HOST %s:%d - %s\n", IPstr, _tstoi(PORTstr), PASSstr);
 					WSA();
-					startServer(_tstoi(PORTstr), PASSstr);
+					int err = startServer(_tstoi(PORTstr), PASSstr, allPlayerColors, allPlayerPositions);
+					if (err)
+					{
+						dwprintf(L"_____START SERVER FAILED______ ERR: %d\n", err);
+					}
+					//TODO should client be started aswell?
 					EndDialog(hDlg, LOWORD(wParam));
 					return (INT_PTR) TRUE;
 				}
@@ -492,7 +586,11 @@ INT_PTR CALLBACK joinServer(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
 					GetWindowText(editPass, PASSstr, 40);
 					//dwprintf(L"JOIN: %s:%d - %s\n", IPstr, _tstoi(PORTstr), PASSstr);
 					WSA();
-					startClient((HWND) GetWindowLongPtr(hDlg, GWLP_HWNDPARENT), IPstr, _tstoi(PORTstr), PASSstr);
+					int err = startClient((HWND) GetWindowLongPtr(hDlg, GWLP_HWNDPARENT), IPstr, _tstoi(PORTstr), PASSstr, allPlayerColors, allPlayerPositions);
+					if (err)
+					{
+						dwprintf(L"_____START CLIENT FAILED______ ERR: %d\n", err);
+					}
 					EndDialog(hDlg, LOWORD(wParam));
 					return (INT_PTR) TRUE;
 				}
@@ -551,9 +649,9 @@ INT_PTR CALLBACK changeColor(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 							}
 							HWND red = GetDlgItem(hDlg, COLOR_RED), green = GetDlgItem(hDlg, COLOR_GREEN), blue = GetDlgItem(hDlg, COLOR_BLUE);
 							WCHAR REDstr[16], GREENstr[16], BLUEstr[16];
-							GetWindowText(red, REDstr, 4);
-							GetWindowText(green, GREENstr, 4);
-							GetWindowText(blue, BLUEstr, 4);
+							GetWindowText(red, REDstr, 16);
+							GetWindowText(green, GREENstr, 16);
+							GetWindowText(blue, BLUEstr, 16);
 							int r = _tstoi(REDstr), g = _tstoi(GREENstr), b = _tstoi(BLUEstr);
 							if (!changedByCode)
 							{

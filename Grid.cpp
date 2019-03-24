@@ -128,7 +128,33 @@ BOOL rotateGrid(Orientation o)
 	return TRUE;
 }
 
-BOOL redrawTile(unsigned char newPos, unsigned char oldPos)
+BOOL redrawTile(BYTE index)
 {
-	return RedrawWindow(grid[newPos], nullptr, NULL, RDW_INVALIDATE | RDW_ERASE) && RedrawWindow(grid[oldPos], nullptr, NULL, RDW_INVALIDATE | RDW_ERASE);
+	if (index >= GRID_TILE_COUNT)
+	{
+		return FALSE;
+	}
+	return RedrawWindow(grid[index], nullptr, NULL, RDW_INVALIDATE | RDW_ERASE);
+}
+BOOL redrawTwoTiles(BYTE newPos, BYTE oldPos)
+{
+	if (newPos >= GRID_TILE_COUNT || oldPos >= GRID_TILE_COUNT)
+	{
+		return FALSE;
+	}
+	return redrawTile(newPos) && redrawTile(oldPos);
+}
+BOOL redrawAllTiles()
+{
+	for (BYTE i = 0; i < GRID_TILE_COUNT; i++)
+	{
+		if (grid[i] != nullptr)
+		{
+			if (!redrawTile(i))
+			{
+				return FALSE;
+			}
+		}
+	}
+	return TRUE;
 }
