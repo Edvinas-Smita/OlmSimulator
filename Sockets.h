@@ -20,7 +20,8 @@
 #define MAX_WAITING_FOR_AUTH 50
 #define REASON_INVALPASS 128>>0
 #define REASON_TIMEOUT 128>>1
-#define REASON_SERVERERR 128>>7
+#define REASON_SERVER_FULL 128>>2
+#define REASON_SERVERERR 128>>4
 
 #define BUFFER_SIZE 1024
 #pragma endregion
@@ -38,11 +39,10 @@ enum Command
 	CHANGE_WEAPON,
 	CHANGE_OLM_LOC,
 	TOGGLE_RUN,
+	UPDATE_STATS,
 };
 
 BYTE			isServerRunning();
-BYTE			getThisPlayerID();
-BYTE			getPlayerCount();
 BYTE			isPlayerConnected();
 int				WSA();
 int				deWSA();
@@ -50,18 +50,18 @@ int				checkDeWSA();
 void			deleteArrayElementAndCollapse(void *arr, int deleteIndex, int elementSize, int elementCount, void *filler);
 void			dwprintf(const WCHAR *format, ...);	//unrelated to sockets
 
-struct CatchupData
+struct ClientData
 {
 	BYTE playerCount;
-	COLORREF allPlayerColors[MAX_CONS];
+	BYTE thisClientID;
+
 	BYTE allPlayerPositions[MAX_CONS];
-	/*
-	TODO add more data
-	statistics - ?
-		total clicks
-		total clicks on parts
-	*/
+	COLORREF allPlayerColors[MAX_CONS];
+
+	int statsGrid[MAX_CONS];
+	int statsParts[MAX_CONS];
 };
+#define notin sizeof(ClientData);
 
 struct CmdVal
 {
@@ -86,32 +86,38 @@ struct AcceptorAuth_Args
 	SOCKET sock;
 	sockaddr_in addr;
 	LPWSTR pass;
-	COLORREF *allPlayerColors;
+	ClientData *clientData;
+	/*COLORREF *allPlayerColors;
 	BYTE *allPlayerPositions;
+	int *statsGrid;
+	int *statsParts;*/
 };
 struct Acceptor_Args
 {
 	SOCKET sock;
 	LPWSTR pass;
-	COLORREF *allPlayerColors;
+	ClientData *clientData;
+	/*COLORREF *allPlayerColors;
 	BYTE *allPlayerPositions;
+	int *statsGrid;
+	int *statsParts;*/
 };
 
 
-void			actualAccept(SOCKET sock, sockaddr_in addr, int *waitingCount, COLORREF *allPlayerColors, BYTE *allPlayerPositions);
+void			actualAccept(SOCKET sock, sockaddr_in addr, int *waitingCount, ClientData *clientData);
 void			actualReject(SOCKET sock, int *waitingCount, BYTE reasons);
 DWORD WINAPI	acceptorAuth(PVOID args);
 DWORD WINAPI	acceptor(PVOID args);
 
-void			receiver(SOCKET socket, int socketID);
+void			receiver(SOCKET socket, int socketID, BYTE playerCurrentTile);
 DWORD WINAPI	poller(PVOID args);
 SOCKET			setupListenSocket(PCSTR ip, unsigned short port);
 
 void			handleMessageFromServer(HWND msgback);
 DWORD WINAPI	clientPoller(PVOID args);
 
-int				startServer(USHORT port, LPCWSTR pass, COLORREF *allPlayerColors, BYTE *allPlayerPositions);
-int				startClient(HWND msgback, LPCWSTR ip, USHORT port, LPCWSTR pass, COLORREF *allPlayerColors, BYTE *allPlayerPositions);
+int				startServer(USHORT port, LPCWSTR pass, ClientData *clientData);
+int				startClient(HWND msgback, LPCWSTR ip, USHORT port, LPCWSTR pass, ClientData *clientData);
 
 void			stopServer();
 void			stopClient(BOOL manual = TRUE);

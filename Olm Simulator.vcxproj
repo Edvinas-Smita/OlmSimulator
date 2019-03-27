@@ -154,6 +154,7 @@
     <ClInclude Include="Resource.h" />
     <ClInclude Include="SimulatorControls.h" />
     <ClInclude Include="Sockets.h" />
+    <ClInclude Include="Stats.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
@@ -163,6 +164,7 @@
     <ClCompile Include="Olm Simulator.cpp" />
     <ClCompile Include="SimulatorControls.cpp" />
     <ClCompile Include="Sockets.cpp" />
+    <ClCompile Include="Stats.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

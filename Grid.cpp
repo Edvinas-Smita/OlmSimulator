@@ -3,9 +3,9 @@
 
 #define GRID_TILE_COUNT 11*19
 
-HWND grid[11*19];	//0 === Top Left; GRID_TILE_COUNT - 1 === Bottom Right
-					//this is NOT transformed - north is up
-					//[y * 11 + x] - flattened horizontal first
+HWND grid[GRID_TILE_COUNT];	//0 === Top Left; GRID_TILE_COUNT - 1 === Bottom Right
+							//this is NOT transformed - north is up
+							//[y * 11 + x] - flattened horizontal first
 
 HWND createTile(HWND m_hwnd, int id)
 {
