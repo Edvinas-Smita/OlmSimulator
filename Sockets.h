@@ -7,6 +7,8 @@
 #include <WinSock2.h>	//ADD TO LINKER: ws2_32.lib
 #include <WS2tcpip.h>
 
+#include "Olm parts.h"
+
 #pragma region ServerClientDefines
 #define SOCK_ADDR "127.0.0.1"
 
@@ -50,18 +52,36 @@ int				checkDeWSA();
 void			deleteArrayElementAndCollapse(void *arr, int deleteIndex, int elementSize, int elementCount, void *filler);
 void			dwprintf(const WCHAR *format, ...);	//unrelated to sockets
 
-struct ClientData
+struct ClientData	//aka data of one player
 {
-	BYTE playerCount;
 	BYTE thisClientID;
-
-	BYTE allPlayerPositions[MAX_CONS];
-	COLORREF allPlayerColors[MAX_CONS];
-
-	int statsGrid[MAX_CONS];
-	int statsParts[MAX_CONS];
 };
-#define notin sizeof(ClientData);
+struct ServerData
+{
+	SOCKET serverSocket = INVALID_SOCKET;
+	SOCKET connectedSockets[MAX_CONS];
+	sockaddr_in connectedAddrs[MAX_CONS];
+	BYTE currentConSockCount = 0;
+	BYTE runStatuses[MAX_CONS];
+	BYTE weaponRanges[MAX_CONS];
+	BYTE weaponSpeeds[MAX_CONS];
+};
+struct SharedData
+{
+	BYTE playerCount = 0;
+	BYTE playerPositions[MAX_CONS];
+	COLORREF playerColors[MAX_CONS];
+
+	OlmLocation olmLocation = West;
+	int statsGrid[MAX_CONS];	//stats for player clicks on grid
+	int statsParts[MAX_CONS];	//stats for player clicks on parts
+};
+#define notin sizeof(SharedData);
+struct CatchupData
+{
+	ClientData clientData;
+	SharedData sharedData;
+};
 
 struct CmdVal
 {
@@ -86,38 +106,30 @@ struct AcceptorAuth_Args
 	SOCKET sock;
 	sockaddr_in addr;
 	LPWSTR pass;
-	ClientData *clientData;
-	/*COLORREF *allPlayerColors;
-	BYTE *allPlayerPositions;
-	int *statsGrid;
-	int *statsParts;*/
+	SharedData *sharedData;
 };
 struct Acceptor_Args
 {
 	SOCKET sock;
 	LPWSTR pass;
-	ClientData *clientData;
-	/*COLORREF *allPlayerColors;
-	BYTE *allPlayerPositions;
-	int *statsGrid;
-	int *statsParts;*/
+	SharedData *sharedData;
 };
 
 
-void			actualAccept(SOCKET sock, sockaddr_in addr, int *waitingCount, ClientData *clientData);
+void			actualAccept(SOCKET sock, sockaddr_in addr, int *waitingCount, SharedData *sharedData);
 void			actualReject(SOCKET sock, int *waitingCount, BYTE reasons);
 DWORD WINAPI	acceptorAuth(PVOID args);
 DWORD WINAPI	acceptor(PVOID args);
 
-void			receiver(SOCKET socket, int socketID, BYTE playerCurrentTile);
+void			receiver(SOCKET socket, int socketID, SharedData *sharedData);
 DWORD WINAPI	poller(PVOID args);
 SOCKET			setupListenSocket(PCSTR ip, unsigned short port);
 
 void			handleMessageFromServer(HWND msgback);
 DWORD WINAPI	clientPoller(PVOID args);
 
-int				startServer(USHORT port, LPCWSTR pass, ClientData *clientData);
-int				startClient(HWND msgback, LPCWSTR ip, USHORT port, LPCWSTR pass, ClientData *clientData);
+int				startServer(USHORT port, LPCWSTR pass, SharedData *sharedData);
+int				startClient(HWND msgback, LPCWSTR ip, USHORT port, LPCWSTR pass);
 
 void			stopServer();
 void			stopClient(BOOL manual = TRUE);

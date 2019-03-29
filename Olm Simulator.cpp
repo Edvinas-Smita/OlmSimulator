@@ -22,12 +22,11 @@ INT_PTR CALLBACK    joinServer(HWND hDlg, UINT message, WPARAM wParam, LPARAM lP
 //	Custom GUI stuff
 HWND				main_hwnd, controlArea;
 COLORREF			customColors[16];
+Orientation			orientation = NorthUp;
 
 //	Custom logic stuff
-Orientation			orientation = NorthUp;
-OlmLocation			olmLocation = West;
-
 ClientData clientData;
+SharedData sharedData;
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
 {
@@ -164,18 +163,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			int wmId = LOWORD(wParam);
 			if ((wmId & GRID_BUTTON) == GRID_BUTTON)
 			{
-				BYTE unpaintId = clientData.allPlayerPositions[clientData.thisClientID], clickedTile = wmId & 0xff;
+				BYTE unpaintId = sharedData.playerPositions[clientData.thisClientID], clickedTile = wmId & 0xff;
 				if (isPlayerConnected())
 				{
 					sendToServer(CLICK_TILE, clickedTile);
 					break;
 				}
-				/*clientData.allPlayerPositions[clientData.thisClientID] = clickedTile;
-				if (!redrawTwoTiles(clickedTile, unpaintId))
-				{
-					DestroyWindow(hWnd);
-					break;
-				}*/
 			}
 			if ((wmId & OLMPART_BUTTON) == OLMPART_BUTTON)
 			{
@@ -226,7 +219,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					else if (isPlayerConnected())
 					{
 						stopClient();
-						clientData = {0};
+						sharedData = {};
 
 						redrawAllTiles();
 						for (BYTE i = 0; i < MAX_CONS; i++)
@@ -243,7 +236,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					cc.hwndOwner = hWnd;
 					cc.lpCustColors = customColors;
 					cc.Flags = CC_RGBINIT | CC_FULLOPEN;
-					cc.rgbResult = clientData.allPlayerColors[clientData.thisClientID];
+					cc.rgbResult = sharedData.playerColors[clientData.thisClientID];
 					ChooseColor(&cc);
 					sendToServer(CHANGE_COLOR, cc.rgbResult);
 					break;
@@ -258,19 +251,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case WM_MULTIPLAYER:
 		{
 			Command command = (Command) wParam;
-			ValueAndSenderID vsid = {0};
-			if ((ValueAndSenderID*) lParam != nullptr)
-			{
-				vsid = *(ValueAndSenderID*) lParam;
-				free((ValueAndSenderID*) lParam);
-				dwprintf(L"Player %d sent %d: %llu\n", vsid.sender, command, vsid.value);
-			}
 
 			switch (command)
 			{
 				case PLAYER_JOIN:
 				{
-					clientData.playerCount++;
+					ValueAndSenderID vsid = *(ValueAndSenderID*) lParam;
+					free((ValueAndSenderID*) lParam);
+					sharedData.playerCount++;
 					BYTE player = vsid.sender;
 					COLORREF clr;
 					switch (player % 7)
@@ -311,45 +299,50 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 							break;
 						}
 					}
-					clientData.allPlayerColors[player] = clr;
-					clientData.allPlayerPositions[player] = 203;
+					sharedData.playerColors[player] = clr;
+					sharedData.playerPositions[player] = 203;
 					redrawTile(203);
 					break;
 				}
 				case DATA_CATCHUP:
 				{
+					clientData = ((CatchupData*) lParam)->clientData;
+					sharedData = ((CatchupData*) lParam)->sharedData;
 					redrawAllTiles();
-					for (BYTE i = 0; i < clientData.playerCount; i++)
+					for (BYTE i = 0; i < sharedData.playerCount; i++)
 					{
-						updatePlayerStats(i, clientData.statsGrid[i], clientData.statsParts[i]);
+						updatePlayerStats(i, sharedData.statsGrid[i], sharedData.statsParts[i]);
 					}
 					break;
 				}
 				case PLAYER_QUIT:
 				{
-					clientData.playerCount--;
+					ValueAndSenderID vsid = *(ValueAndSenderID*) lParam;
+					free((ValueAndSenderID*) lParam);
+					sharedData.playerCount--;
 					if (vsid.sender < clientData.thisClientID)
 					{
 						clientData.thisClientID--;
 					}
 					BYTE player = vsid.sender;
-					redrawTile(clientData.allPlayerPositions[player]);
+					redrawTile(sharedData.playerPositions[player]);
 					COLORREF fillerClr = 0;
 					BYTE fillerByte = 0;
 					int fillerInt = 0;
-					deleteArrayElementAndCollapse(clientData.allPlayerColors, player, sizeof(COLORREF), MAX_CONS, &fillerClr);
-					deleteArrayElementAndCollapse(clientData.allPlayerPositions, player, sizeof(BYTE), MAX_CONS, &fillerByte);
-					deleteArrayElementAndCollapse(clientData.statsGrid, player, sizeof(int), MAX_CONS, &fillerInt);
-					deleteArrayElementAndCollapse(clientData.statsParts, player, sizeof(int), MAX_CONS, &fillerInt);
-					for (BYTE i = player; i < clientData.playerCount + 1; i++)
+					deleteArrayElementAndCollapse(sharedData.playerColors, player, sizeof(COLORREF), MAX_CONS, &fillerClr);
+					deleteArrayElementAndCollapse(sharedData.playerPositions, player, sizeof(BYTE), MAX_CONS, &fillerByte);
+					deleteArrayElementAndCollapse(sharedData.statsGrid, player, sizeof(int), MAX_CONS, &fillerInt);
+					deleteArrayElementAndCollapse(sharedData.statsParts, player, sizeof(int), MAX_CONS, &fillerInt);
+					for (BYTE i = player; i < sharedData.playerCount + 1; i++)
 					{
-						updatePlayerStats(i, clientData.statsGrid[i], clientData.statsParts[i]);
+						updatePlayerStats(i, sharedData.statsGrid[i], sharedData.statsParts[i]);
 					}
 					break;
 				}
 				case SERVER_CLOSED:
 				{
-					clientData = {0};
+					clientData = {};
+					sharedData = {};
 					for (BYTE i = 0; i < MAX_CONS; i++)
 					{
 						updatePlayerStats(i, 0, 0);
@@ -360,27 +353,33 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				}
 				case CHANGE_COLOR:
 				{
-					clientData.allPlayerColors[vsid.sender] = vsid.value;
-					redrawTile(clientData.allPlayerPositions[vsid.sender]);
+					ValueAndSenderID vsid = *(ValueAndSenderID*) lParam;
+					free((ValueAndSenderID*) lParam);
+					sharedData.playerColors[vsid.sender] = vsid.value;
+					redrawTile(sharedData.playerPositions[vsid.sender]);
 					break;
 				}
 				case CLICK_TILE:
 				{
+					ValueAndSenderID vsid = *(ValueAndSenderID*) lParam;
+					free((ValueAndSenderID*) lParam);
 					BYTE player = vsid.sender, tile = vsid.value;
-					BYTE previousTile = clientData.allPlayerPositions[player];
-					clientData.allPlayerPositions[player] = tile;
+					BYTE previousTile = sharedData.playerPositions[player];
+					sharedData.playerPositions[player] = tile;
 
 					redrawTwoTiles(tile, previousTile);
 					
-					clientData.statsGrid[player]++;
-					updatePlayerStats(player, clientData.statsGrid[player], clientData.statsParts[player]);
+					sharedData.statsGrid[player]++;
+					updatePlayerStats(player, sharedData.statsGrid[player], sharedData.statsParts[player]);
 					break;
 				}
 				case CLICK_PART:
 				{
+					ValueAndSenderID vsid = *(ValueAndSenderID*) lParam;
+					free((ValueAndSenderID*) lParam);
 					BYTE player = vsid.sender, part = vsid.value;
-					clientData.statsParts[player]++;
-					updatePlayerStats(player, clientData.statsGrid[player], clientData.statsParts[player]);
+					sharedData.statsParts[player]++;
+					updatePlayerStats(player, sharedData.statsGrid[player], sharedData.statsParts[player]);
 					break;
 				}
 				case CHANGE_WEAPON:
@@ -389,6 +388,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				}
 				case CHANGE_OLM_LOC:
 				{
+					ValueAndSenderID vsid = *(ValueAndSenderID*) lParam;
+					free((ValueAndSenderID*) lParam);
 					if (!rotateAllParts((OlmLocation) vsid.value, orientation))
 					{
 						DestroyWindow(main_hwnd);
@@ -415,9 +416,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				BYTE playersOnThisTile[MAX_CONS];	//boolean array
 				BYTE tile = wmId & 0xff, playerCountOnThisTile = 0, thisPlayerOnThisTile = FALSE;
-				for (BYTE i = 0; i < clientData.playerCount; i++)
+				for (BYTE i = 0; i < sharedData.playerCount; i++)
 				{
-					if (tile == clientData.allPlayerPositions[i])
+					if (tile == sharedData.playerPositions[i])
 					{
 						playersOnThisTile[playerCountOnThisTile++] = i;
 						if (i == clientData.thisClientID)
@@ -429,12 +430,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				LPDRAWITEMSTRUCT lpDIS = (LPDRAWITEMSTRUCT) lParam;
 				if (thisPlayerOnThisTile)
 				{
-					SetDCBrushColor(lpDIS->hDC, clientData.allPlayerColors[clientData.thisClientID]);
+					SetDCBrushColor(lpDIS->hDC, sharedData.playerColors[clientData.thisClientID]);
 					SelectObject(lpDIS->hDC, GetStockObject(DC_BRUSH));
 					RoundRect(lpDIS->hDC, lpDIS->rcItem.left, lpDIS->rcItem.top, lpDIS->rcItem.right, lpDIS->rcItem.bottom, 0, 0);
 					if (playerCountOnThisTile > 1)
 					{
-						SetDCBrushColor(lpDIS->hDC, ~clientData.allPlayerColors[clientData.thisClientID]);
+						SetDCBrushColor(lpDIS->hDC, ~sharedData.playerColors[clientData.thisClientID]);
 						WCHAR buffer[4];
 						swprintf_s(buffer, L"%d", playerCountOnThisTile - 1);
 						DrawTextW(lpDIS->hDC, buffer, -1, &(lpDIS->rcItem), DT_CENTER);
@@ -442,12 +443,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				}
 				else if (playerCountOnThisTile)
 				{
-					SetDCBrushColor(lpDIS->hDC, clientData.allPlayerColors[playersOnThisTile[0]]);
+					SetDCBrushColor(lpDIS->hDC, sharedData.playerColors[playersOnThisTile[0]]);
 					SelectObject(lpDIS->hDC, GetStockObject(DC_BRUSH));
 					RoundRect(lpDIS->hDC, lpDIS->rcItem.left, lpDIS->rcItem.top, lpDIS->rcItem.right, lpDIS->rcItem.bottom, 0, 0);
 					if (playerCountOnThisTile > 1)
 					{
-						SetDCBrushColor(lpDIS->hDC, ~clientData.allPlayerColors[playersOnThisTile[0]]);
+						SetDCBrushColor(lpDIS->hDC, ~sharedData.playerColors[playersOnThisTile[0]]);
 						WCHAR buffer[4];
 						swprintf_s(buffer, L"%d", playerCountOnThisTile - 1);
 						DrawTextW(lpDIS->hDC, buffer, -1, &(lpDIS->rcItem), DT_CENTER);
@@ -505,7 +506,7 @@ LRESULT CALLBACK ControlHandler(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_
 						DestroyWindow(main_hwnd);
 						break;
 					}
-					if (!rotateAllParts(olmLocation, orientation))
+					if (!rotateAllParts(sharedData.olmLocation, orientation))
 					{
 						DestroyWindow(main_hwnd);
 						break;
@@ -515,10 +516,15 @@ LRESULT CALLBACK ControlHandler(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_
 				}
 				else if ((wpl & OLMPOS_CONTROL) == OLMPOS_CONTROL)
 				{
-					if (!isServerRunning() && !isPlayerConnected())
+					if (isPlayerConnected())
 					{
-						olmLocation = (OlmLocation) ((wpl & (~CONTROL_BUTTON)) & (~OLMPOS_CONTROL));
-						if (!rotateAllParts(olmLocation, orientation))
+						sharedData.olmLocation = (OlmLocation) ((wpl & (~CONTROL_BUTTON)) & (~OLMPOS_CONTROL));
+						sendToServer(CHANGE_OLM_LOC, sharedData.olmLocation);
+					}
+					else
+					{
+						sharedData.olmLocation = (OlmLocation) ((wpl & (~CONTROL_BUTTON)) & (~OLMPOS_CONTROL));
+						if (!rotateAllParts(sharedData.olmLocation, orientation))
 						{
 							DestroyWindow(main_hwnd);
 							break;
@@ -527,38 +533,10 @@ LRESULT CALLBACK ControlHandler(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_
 						RedrawWindow(main_hwnd, &wrecked, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
 						break;
 					}
-					else if (isServerRunning())
-					{
-						olmLocation = (OlmLocation) ((wpl & (~CONTROL_BUTTON)) & (~OLMPOS_CONTROL));
-						sendToClients(CHANGE_OLM_LOC, olmLocation, 0);
-					}
 				}
 			}
 			break;
 		}
-		//case WM_MULTIPLAYER:
-		//{
-		//	Command command = (Command) wp;
-		//	ValueAndSenderID vsid = {0};
-		//	if ((ValueAndSenderID*) lp != nullptr)
-		//	{
-		//		vsid = *(ValueAndSenderID*) lp;
-		//		free((ValueAndSenderID*) lp);
-		//		//dwprintf(L"Player %d sent %d: %llu\n", vsid.sender, command, vsid.value);
-		//	}
-
-		//	switch (command)
-		//	{
-		//		case UPDATE_STATS:
-		//		{
-		//			dwprintf(L"UPDATE STATS: %d, %d, %d (0x%x)", vsid.sender, (int) (vsid.value >> (8 * sizeof(int))), (int) vsid.value, vsid.value);
-		//			updatePlayerStats(vsid.sender, (int) (vsid.value >> (8 * sizeof(int))), (int) vsid.value);
-		//			break;
-		//		}
-		//		default:
-		//			break;
-		//	}
-		//}
 		default:
 			break;
 	}
@@ -620,12 +598,12 @@ INT_PTR CALLBACK hostServer(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
 					GetWindowText(editPass, PASSstr, 40);
 					//dwprintf(L"HOST %s:%d - %s\n", IPstr, _tstoi(PORTstr), PASSstr);
 					WSA();
-					int err = startServer(_tstoi(PORTstr), PASSstr, &clientData);
+					int err = startServer(_tstoi(PORTstr), PASSstr, &sharedData);
 					if (err)
 					{
 						dwprintf(L"_____START SERVER FAILED______ ERR: %d\n", err);
 					}
-					err = startClient((HWND) GetWindowLongPtr(hDlg, GWLP_HWNDPARENT), IPstr, _tstoi(PORTstr), PASSstr, &clientData);
+					err = startClient((HWND) GetWindowLongPtr(hDlg, GWLP_HWNDPARENT), IPstr, _tstoi(PORTstr), PASSstr);
 					if (err)
 					{
 						dwprintf(L"_____START CLIENT FAILED______ ERR: %d\n", err);
@@ -703,7 +681,7 @@ INT_PTR CALLBACK joinServer(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
 					GetWindowText(editPass, PASSstr, 40);
 					//dwprintf(L"JOIN: %s:%d - %s\n", IPstr, _tstoi(PORTstr), PASSstr);
 					WSA();
-					int err = startClient((HWND) GetWindowLongPtr(hDlg, GWLP_HWNDPARENT), IPstr, _tstoi(PORTstr), PASSstr, &clientData);
+					int err = startClient((HWND) GetWindowLongPtr(hDlg, GWLP_HWNDPARENT), IPstr, _tstoi(PORTstr), PASSstr);
 					if (err)
 					{
 						dwprintf(L"_____START CLIENT FAILED______ ERR: %d\n", err);
