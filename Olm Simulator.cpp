@@ -5,6 +5,7 @@
 #include "Olm Simulator.h"
 
 #define MAX_LOADSTRING 100
+#define RUN_CHECKBOX 0x5464
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
@@ -153,6 +154,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				DestroyWindow(hWnd);
 				break;
 			}
+			CreateWindow(L"BUTTON", L"Run", WS_VISIBLE | WS_CHILD | BS_CHECKBOX, 0, 0, 100, 50, controlArea, (HMENU) RUN_CHECKBOX, (HINSTANCE) GetWindowLong(controlArea, GWLP_HINSTANCE), NULL);
+			CheckDlgButton(controlArea, RUN_CHECKBOX, BST_CHECKED);
 
 			SetWindowSubclass(controlArea, (SUBCLASSPROC) &ControlHandler, 1, 0);
 
@@ -379,6 +382,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					free((ValueAndSenderID*) lParam);
 					BYTE player = vsid.sender, part = vsid.value;
 					sharedData.statsParts[player]++;
+					sharedData.statsGrid[player]--;
 					updatePlayerStats(player, sharedData.statsGrid[player], sharedData.statsParts[player]);
 					break;
 				}
@@ -531,9 +535,28 @@ LRESULT CALLBACK ControlHandler(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_
 						}
 						RECT wrecked = {0, 0, 525, 525};
 						RedrawWindow(main_hwnd, &wrecked, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
-						break;
 					}
 				}
+				break;
+			}
+			switch (wpl)
+			{
+				case RUN_CHECKBOX:
+				{
+					BOOL checked = IsDlgButtonChecked(hwnd, RUN_CHECKBOX);
+					if (checked)
+					{
+						CheckDlgButton(controlArea, RUN_CHECKBOX, BST_UNCHECKED);
+					}
+					else
+					{
+						CheckDlgButton(controlArea, RUN_CHECKBOX, BST_CHECKED);
+					}
+					sendToServer(TOGGLE_RUN, !checked);
+					break;
+				}
+				default:
+					break;
 			}
 			break;
 		}

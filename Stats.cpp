@@ -54,7 +54,7 @@ BOOL initStatFields(HWND m_hwnd, BYTE playerCount)
 {
 	CreateWindow(
 		L"STATIC",
-		L"Player | Clicks on grid | Clicks on parts",
+		L"Player | \"Ticks\" w\\o attack | \"Ticks\" w\\ attack",
 		WS_VISIBLE | WS_CHILD | WS_BORDER,  // Styles 
 		0,			// x position
 		275,	// y position 

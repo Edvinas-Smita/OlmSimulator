@@ -65,6 +65,7 @@ struct ServerData
 	BYTE runStatuses[MAX_CONS];
 	BYTE weaponRanges[MAX_CONS];
 	BYTE weaponSpeeds[MAX_CONS];
+	BYTE attackCooldown[MAX_CONS];
 };
 struct SharedData
 {

@@ -77,7 +77,10 @@ void dwprintf(const WCHAR *format, ...)
 	OutputDebugString(buffer);
 	va_end(args);
 }
-
+bool xIsBetweenYAndZIncluding(int x, int y, int z)
+{
+	return x >= y && x <= z;
+}
 
 void actualAccept(SOCKET sock, sockaddr_in addr, int *waitingCount, SharedData *sharedData)
 {
@@ -221,6 +224,42 @@ DWORD WINAPI acceptor(PVOID args)
 	return 0;
 }
 
+
+BYTE path(BYTE from, BYTE to, BYTE id)
+{
+	BYTE targetX = to % 11, targetY = to / 11;
+	BYTE currentX = from % 11, currentY = from / 11;
+	//dwprintf(L"Started pathing from (%d:%d) to (%d:%d)\n", currentX, currentY, targetX, targetY);
+	for (BYTE i = 0; i < (1 + !!serverData.runStatuses[id]); i++)
+	{
+		BYTE distXMod = targetX > currentX ? targetX - currentX : currentX - targetX;
+		BYTE distYMod = targetY > currentY ? targetY - currentY : currentY - targetY;
+		BYTE dist = distXMod > distYMod ? distXMod : distYMod;
+
+		if (dist > 0)
+		{
+			if (distXMod > distYMod)
+			{
+				//move a tile along x axis
+				currentX += targetX > currentX ? 1 : -1;
+			}
+			else if (distXMod < distYMod)
+			{
+				//move a tile along y axis
+				currentY += targetY > currentY ? 1 : -1;
+			}
+			else
+			{
+				//move a tile diagonally
+				currentX += targetX > currentX ? 1 : -1;
+				currentY += targetY > currentY ? 1 : -1;
+			}
+		}
+		//dwprintf(L"	--->Pathed to (%d:%d)\n", currentX, currentY);
+		//TODO send msg to place acid here
+	}
+	return currentY * 11 + currentX;
+}
 void receiver(SOCKET socket, int socketID, SharedData *sharedData)
 {
 	int err;
@@ -239,47 +278,120 @@ void receiver(SOCKET socket, int socketID, SharedData *sharedData)
 	}
 	if (commandAndValue.cmd == CHANGE_OLM_LOC && socketID != 0)
 	{
+		//only the host may change olm location
 		return;
 	}
 	if (commandAndValue.cmd == CLICK_TILE && sharedData->playerPositions[socketID] != commandAndValue.val)	//pathfind and send the adjusted msg
 	{
-		BYTE targetX = (BYTE) commandAndValue.val % 11, targetY = (BYTE) commandAndValue.val / 11;
+		if (serverData.attackCooldown[socketID] > 0)
+		{
+			serverData.attackCooldown[socketID]--;
+		}
+		sendToClients(CLICK_TILE, path(sharedData->playerPositions[socketID], commandAndValue.val, socketID), socketID);
+		return;
+	}
+	if (commandAndValue.cmd == CLICK_PART)
+	{
+		if (serverData.attackCooldown[socketID] > 0)
+		{
+			serverData.attackCooldown[socketID]--;
+		}
+		char targetX = sharedData->olmLocation == West ? -1 : 11, targetY;
 		BYTE currentX = sharedData->playerPositions[socketID] % 11, currentY = sharedData->playerPositions[socketID] / 11;
-		//dwprintf(L"Started pathing from (%d:%d) to (%d:%d)\n", currentX, currentY, targetX, targetY);
-		for (BYTE i = 0; i < (1 + !!serverData.runStatuses[socketID]); i++)
+		switch ((OlmPart) commandAndValue.val)
+		{
+			case Mage:
+			{
+				targetY = sharedData->olmLocation == West ? 11 : 1;
+				break;
+			}
+			case Head:
+			{
+				targetY = 6;
+				break;
+			}
+			case Melee:
+			{
+				targetY = sharedData->olmLocation == West ? 1 : 11;
+				break;
+			}
+			default:
+				break;
+		}
+		targetY = xIsBetweenYAndZIncluding(currentY, targetY, targetY + 4)
+			? currentY
+			: currentY < targetY ? targetY : targetY + 4;
+
+		if (serverData.weaponRanges[socketID] == 0)
+		{
+			targetX = targetX == -1 ? 0 : 10;
+			BYTE distXMod = targetX > currentX ? targetX - currentX : currentX - targetX;
+			BYTE distYMod = targetY > currentY ? targetY - currentY : currentY - targetY;
+			if (!distXMod && !distYMod)
+			{
+				if (serverData.attackCooldown[socketID] == 0)
+				{
+					serverData.attackCooldown[socketID] = serverData.weaponSpeeds[socketID];
+					sendToClients(commandAndValue.cmd, commandAndValue.val, socketID);
+				}
+				sendToClients(CLICK_TILE, sharedData->playerPositions[socketID], socketID);
+			}
+			else
+			{
+				BYTE pathedTile = path(sharedData->playerPositions[socketID], targetY * 11 + targetX, socketID);
+				sendToClients(CLICK_TILE, pathedTile, socketID);
+				BYTE pathedX = pathedTile % 11, pathedY = pathedTile / 11;
+				distXMod = targetX > pathedX ? targetX - pathedX : pathedX - targetX;
+				distYMod = targetY > pathedY ? targetY - pathedY : pathedY - targetY;
+				if (!distXMod && !distYMod)
+				{
+					if (serverData.attackCooldown[socketID] == 0)
+					{
+						serverData.attackCooldown[socketID] = serverData.weaponSpeeds[socketID];
+						sendToClients(commandAndValue.cmd, commandAndValue.val, socketID);
+					}
+				}
+			}
+			return;
+		}
+		else
 		{
 			BYTE distXMod = targetX > currentX ? targetX - currentX : currentX - targetX;
 			BYTE distYMod = targetY > currentY ? targetY - currentY : currentY - targetY;
 			BYTE dist = distXMod > distYMod ? distXMod : distYMod;
-
-			if (dist > 0)
+			targetX = targetX == -1 ? 0 : 10;
+			if (dist <= serverData.weaponRanges[socketID])
 			{
-				if (distXMod > distYMod)
+				if (serverData.attackCooldown[socketID] == 0)
 				{
-					//move a tile along x axis
-					currentX += targetX > currentX ? 1 : -1;
+					serverData.attackCooldown[socketID] = serverData.weaponSpeeds[socketID];
+					sendToClients(commandAndValue.cmd, commandAndValue.val, socketID);
 				}
-				else if (distXMod < distYMod)
+				sendToClients(CLICK_TILE, sharedData->playerPositions[socketID], socketID);
+			}
+			else
+			{
+				BYTE pathedTile = path(sharedData->playerPositions[socketID], targetY * 11 + targetX, socketID);
+				sendToClients(CLICK_TILE, pathedTile, socketID);
+				BYTE pathedX = pathedTile % 11, pathedY = pathedTile / 11;
+				distXMod = targetX > pathedX ? targetX - pathedX : pathedX - targetX;
+				distYMod = targetY > pathedY ? targetY - pathedY : pathedY - targetY;
+				dist = distXMod > distYMod ? distXMod : distYMod;
+				if (dist <= serverData.weaponRanges[socketID])
 				{
-					//move a tile along y axis
-					currentY += targetY > currentY ? 1 : -1;
-				}
-				else
-				{
-					//move a tile diagonally
-					currentX += targetX > currentX ? 1 : -1;
-					currentY += targetY > currentY ? 1 : -1;
+					if (serverData.attackCooldown[socketID] == 0)
+					{
+						serverData.attackCooldown[socketID] = serverData.weaponSpeeds[socketID];
+						sendToClients(commandAndValue.cmd, commandAndValue.val, socketID);
+					}
 				}
 			}
-			commandAndValue.val = currentY * 11 + currentX;
-			//dwprintf(L"	--->Pathed to (%d:%d)\n", currentX, currentY);
-			HANDLE sending = sendToClients(commandAndValue.cmd, commandAndValue.val, socketID);
-			if (WaitForSingleObject(sending, GENERIC_SLEEP_TIME) == WAIT_TIMEOUT)
-			{
-				TerminateThread(sending, WAIT_TIMEOUT);
-				return;
-			}
+			return;
 		}
+	}
+	if (commandAndValue.cmd == TOGGLE_RUN)
+	{
+		serverData.runStatuses[socketID] = commandAndValue.val;
 		return;
 	}
 	
@@ -440,8 +552,8 @@ int startServer(USHORT port, LPCWSTR pass, SharedData *sharedData)
 		serverData.connectedAddrs[i] = {};
 
 		serverData.runStatuses[i] = 1;
-		serverData.weaponRanges[i] = 0;
-		serverData.weaponSpeeds[i] = 4;
+		serverData.weaponRanges[i] = 5;
+		serverData.weaponSpeeds[i] = 2;
 	}
 
 	Acceptor_Args *aargs = (Acceptor_Args*) malloc(sizeof(Acceptor_Args));
